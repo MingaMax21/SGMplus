@@ -1,7 +1,7 @@
 #!/usr/bin/env python3 -*- coding: utf-8 -*-
 """
 Created on Thu Nov 15 12:35:53 2018
-Mono-Depth Expanded SGM
+Mono-Depth Adapted SGM
 @author: Max Hoedel, 2018
 
 """
@@ -35,18 +35,36 @@ imR = imR.astype(int)
 
 # Downsample for processing (full, 1/2, 1/4)   Fnc: https://stackoverflow.com/questions/18666014/downsample-array-in-python
 # !! Interpolation may not be correct downsampling method
-imL = ndimage.interpolation.zoom(imL, 0.5)
-imR = ndimage.interpolation.zoom(imR, 0.5)
+imL = ndimage.interpolation.zoom(imL, 0.25)
+imR = ndimage.interpolation.zoom(imR, 0.25)
 
 # Display preprpcessed images:
 plt.figure()
 plt.imshow(imL,cmap='gray')
 plt.show()
  
-## Define variables for SGM
-r,c = np.shape(imL)
-
 # Calculate raw cost ("use dynamic programming to force pixel matching "globally" along scanline)
 # "make a decision about all matches along scanline at once"
 # matching scanlines is important! "Matching by a path"
 # From left to right, minimize cost SUM_x1->n c(x,y,d) along each scanline
+# Scanline-wise disparity maps are generally streaky, consider homogeneity-criteria
+
+## Define variables for SGM
+r,c = np.shape(imL)         #dim
+dLs = 15                    #discrete disparity levels (= mask size!)
+#hom = 0                     #homogeneity fix toggle
+
+# Determine raw cost
+cost = np.zeros([dLs,r,c])
+for d in range(dLs):
+    for i in range(r):
+        for j in range(c):
+            #if (j)
+            cost[d,i,j] = 1
+            # Edge handling (crop left+right)
+                
+            # Create search template
+        
+            # Save cost value
+
+
