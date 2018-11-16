@@ -5,22 +5,22 @@ Mono-Depth Adapted SGM
 @author: Max Hoedel, 2018
 
 """
+import sys
 import numpy as np
-import scipy as sp
+#import scipy as sp
 from scipy import ndimage
-#from PIL import Image as im
 import matplotlib.pyplot as plt
 import matplotlib.image as img
 import csv
 
 ## Import images and calibration file
 calib = []
-with open('./data/Flowers-perfect/calib.txt', newline='') as inputfile:
+with open('calib.txt', newline='') as inputfile:
     for row in csv.reader(inputfile):
         calib.append(row)
         
-imL = img.imread('./data/Flowers-perfect/im0.png')
-imR = img.imread('./data/Flowers-perfect/im1.png')
+imL = img.imread('im0.png')
+imR = img.imread('im1.png')
 
 # Imread appears to normalize images, resolve to original 0-255 range (opt.):
 imL[:,:,:] *= 255
@@ -35,8 +35,8 @@ imR = imR.astype(int)
 
 # Downsample for processing (full, 1/2, 1/4)   Fnc: https://stackoverflow.com/questions/18666014/downsample-array-in-python
 # !! Interpolation may not be correct downsampling method
-imL = ndimage.interpolation.zoom(imL, 0.25)
-imR = ndimage.interpolation.zoom(imR, 0.25)
+imL = ndimage.interpolation.zoom(imL, 0.125)
+imR = ndimage.interpolation.zoom(imR, 0.125)
 
 # Display preprpcessed images:
 plt.figure()
@@ -50,21 +50,44 @@ plt.show()
 # Scanline-wise disparity maps are generally streaky, consider homogeneity-criteria
 
 ## Define variables for SGM
-r,c = np.shape(imL)         #dim
-dLs = 15                    #discrete disparity levels (= mask size!)
-#hom = 0                     #homogeneity fix toggle
+r,c = np.shape(imL)         
+dLs = 125                # 125 should cover most movement
 
-# Determine raw cost
-cost = np.zeros([dLs,r,c])
-for d in range(dLs):
-    for i in range(r):
-        for j in range(c):
-            #if (j)
-            cost[d,i,j] = 1
-            # Edge handling (crop left+right)
-                
-            # Create search template
+# Enforce odd mask size
+if dLs % 2 == 0:
+    print('ERROR: mask Size ("dLs") must be odd!')
+    sys.exit(1)
+crop = int((dLs-1)/2) # Edge handling parameter
+
+# Determine raw pixel-wise cost and initial disparity estimate
+cost = np.zeros([r,c,dLs])
+cost = cost.astype(int)
+minCost = np.zeros([r,c])
+minCost = minCost.astype(int)
+dispEst = np.zeros([r,c])
+dispEst = dispEst.astype(int)
+
+for i in range(r):
+    for j in range(crop , c-crop):
+        for d in range(dLs):            
+            cost[i,j,d] = abs(imL[i,j] - imR[i,j - crop + d])          
+              
+        # Gather minimums for disparity estimation  
+        minCost[i,j] = min(cost[i,j])
         
-            # Save cost value
+        # Gather index of minumum,         
+        ind1 = np.unravel_index(np.argmin(cost[i,j]), cost[i,j].shape)[0]
+              
+        # calc and append disparity estimate
+        dispEst[i,j] = abs(crop -ind1)
+   
+## TODO Trim and normalize result maps
 
+plt.figure()
+plt.imshow(minCost,cmap='gray')
+plt.show()     
 
+plt.figure()
+plt.imshow(dispEst,cmap='gray')
+plt.show()   
+ 
