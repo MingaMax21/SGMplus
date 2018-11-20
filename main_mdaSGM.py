@@ -14,10 +14,10 @@ import matplotlib.image as img
 import csv
 
 ## Import images and calibration file
-calib = []
-with open('calib.txt', newline='') as inputfile:
-    for row in csv.reader(inputfile):
-        calib.append(row)
+# calib = []
+# with open('calib.txt', newline='') as inputfile:
+#     for row in csv.reader(inputfile):
+#         calib.append(row)
         
 imL = img.imread('im0.png')
 imR = img.imread('im1.png')
@@ -35,8 +35,8 @@ imR = imR.astype(int)
 
 # Downsample for processing (full, 1/2, 1/4)   Fnc: https://stackoverflow.com/questions/18666014/downsample-array-in-python
 # !! Interpolation may not be correct downsampling method
-imL = ndimage.interpolation.zoom(imL, 0.125)
-imR = ndimage.interpolation.zoom(imR, 0.125)
+#imL = ndimage.interpolation.zoom(imL, 0.125)
+#imR = ndimage.interpolation.zoom(imR, 0.125)
 
 # Display preprpcessed images:
 plt.figure()
@@ -51,7 +51,7 @@ plt.show()
 
 ## Define variables for SGM
 r,c = np.shape(imL)         
-dLs = 125                # 125 should cover most movement
+dLs = 65                # 125 should cover most movement
 
 # Enforce odd mask size
 if dLs % 2 == 0:
@@ -91,3 +91,7 @@ plt.figure()
 plt.imshow(dispEst,cmap='gray')
 plt.show()   
  
+dispGT = plt.imread('disparity_map.tiff')
+plt.figure()
+plt.imshow(dispGT,cmap='gray')
+plt.show()   
