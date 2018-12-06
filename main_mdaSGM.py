@@ -21,7 +21,7 @@ import csv
         
 imL = img.imread('im0.png')
 imR = img.imread('im1.png')
-
+dispGT = plt.imread('disparity_map.tiff')  # Ground trutgh
 # Imread appears to normalize images, resolve to original 0-255 range (opt.):
 imL[:,:,:] *= 255
 imR[:,:,:] *= 255
@@ -76,12 +76,17 @@ for i in range(r):
         minCost[i,j] = min(cost[i,j])
         
         # Gather index of minumum,         
-        ind1 = np.unravel_index(np.argmin(cost[i,j]), cost[i,j].shape)[0]
-              
+        #ind1 = np.unravel_index(np.argmin(cost[i,j]), cost[i,j].shape)[0]
+        ind1 = np.argmin(cost[i,j])    
         # calc and append disparity estimate
         dispEst[i,j] = abs(crop -ind1)
    
-## TODO Trim and normalize result maps
+# PROBLEM: multiple identical minimum costs
+print(cost[230,230,:])
+print(cost[231,231,:])
+print(dispGT[230,230])
+
+# 8-Path implementation:
 
 plt.figure()
 plt.imshow(minCost,cmap='gray')
@@ -91,7 +96,7 @@ plt.figure()
 plt.imshow(dispEst,cmap='gray')
 plt.show()   
  
-dispGT = plt.imread('disparity_map.tiff')
+
 plt.figure()
 plt.imshow(dispGT,cmap='gray')
 plt.show()   
