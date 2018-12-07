@@ -100,13 +100,11 @@ def rawCost(imL, imR, bS, dR, R):
             dog2 = dIm[:,bL[1]-1]
             lol = dIm.shape[1]-bL[1]
             cat2 = ([dog2]*lol)
-            mag2 = cat2 * dog2
-            #dog2 = dIm[:,bL[1]-1] * np.ones(1,dIm.shape[1] - bL[1]+1) 
+            mag2 = cat2 * dog2            
             dIm[:, bL[1]:bR[1]] = np.sqrt(mag2.T)
         
         # calculate normalized sums with ones convolution
         flt = np.ones([bS,bS])/(bS*bS)
-        #print(i+dR[0])
         cIm[:,:,i-dR[0]] = signal.convolve2d(dIm, flt, mode='same')
         
         # Post-convolution border handling: TODO!
@@ -124,8 +122,7 @@ dIm, cIm = rawCost(imL, imR, bS, dR, R)
 def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize lline a1*y = a2*x +b
 # different parameters a1, a2, b for each direction
-# fo is parameter for negating signs, pointing in opposite direction
-    
+# fo is parameter for negating signs, pointing in opposite direction    
     if d == 0:
         a1 =1
         a2 = 0 
@@ -214,17 +211,24 @@ def pathCost(slC, p1, p2):
     XX,YY = np.meshgrid(xx,xx,sparse=False,indexing='ij')
     cGrad = np.zeros((nL,nL))
     
-    #write values into cGrad matrix
-    print(cGrad.shape)
+    #write values into cGrad matrix 
+    cGrad[abs(XX-YY) == 1] = p1
+    cGrad[abs(XX-YY) > 1] = p2
     
-#    cGrad[np.where(cGrad[abs(XX-YY)]==1)] = 5
-    
-    #cGrad[abs(XX-YY)] ==1) = p1
-    #cGrad[abs(XX-YY)] > 1) = p2
-    #print(cGrad)
-    
-    gSlice = 0
-    return(gSlice)
+    #L slice matrix
+    lrS = np.zeros(slC.shape)
+    lrS[:,0] = slC[:,0]
+
+    for c in range(1,nC):
+        # save previous slice
+        lrSlast = lrS[:,c-1]
+        # calculate values C and M
+        C = slC[:,c]                          
+        M1 = np.kron(np.ones((nL,1)), lrSlast.T)
+        M = np.amin(M1 + cGrad, axis=1);
+        lrS[:,c] = C+M - min(lrSlast)
+        
+    return(lrS)
 
 
 def costAgg(cIm, p1, p2, nP):
@@ -232,7 +236,7 @@ def costAgg(cIm, p1, p2, nP):
     dimY, dimX, dimD = cIm.shape
     dimMax = dimX + dimY
     
-    lIm = np.zeros((dimX, dimY, dimD, nP))
+    lIm = np.zeros((dimY, dimX, dimD, nP))
     
     # iterate over directions
     for d in range(nP):
@@ -246,29 +250,36 @@ def costAgg(cIm, p1, p2, nP):
 
             h2 = int(inds.shape[0]/dimD)
             slC = np.reshape(h1, [h2, dimD],order='F')
-            #print(slC)
-            #print(slC.shape)
 
             # If path exists:
             if np.all(slC.shape) != 0:
-                #print(slC.shape)
-                gSlice = pathCost(slC.T, p1, p2)
-                #Li[inds] = gSlice[:]
-                #1: evaluate cost
-                #2: assign to output
+                # evaluate cost
+                lrS = pathCost(slC.T, p1, p2).T
+
+                # assign to output
+                lIi[indMat] = lrS.flatten()
+                lIm[:,:,:,d] = lIi
                 
-            
-    
-    return lIi
+    return lIm
 
-lIi = costAgg(cIm, p1, p2, nP)
+lIm = costAgg(cIm, p1, p2, nP)
 
+def dispMap(lIm, dR):
+    S = np.sum(lIm,axis=3)
+    print(S.shape)
+    dMap = np.argmin(S,axis=2)
+    dMap = dMap + dR[0]
+    #dMap = 0
+    return dMap
 
+dMap = dispMap(lIm, dR)
 
-
-
-
-
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("Disparity Image")
+axes.imshow(dMap,cmap='gray')
+plt.show()
 
 
 

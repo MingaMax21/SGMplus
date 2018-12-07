@@ -71,6 +71,7 @@ assert(disparity_range(2) >  disparity_range(1));
 
 % Sum all paths. eq. (14) in the paper
 S = sum(Lr, 4);
+disp(size(S))
 [~, disparity_map] = min(S, [], 3);
 
 %Normalize based on disparity range
@@ -113,7 +114,7 @@ for dir = 1:directions_num
             %Evaluate cost over the path
             graded_slice = evaluatePathCost(slice',P1,P2)';
             Li(inds) = graded_slice(:);
-            
+                   
             %Assign to output buffer
             Lr(:,:,:,dir) = Li;
         end        
@@ -208,7 +209,6 @@ function Lr_slice = evaluatePathCost(C_slice, P1, P2)
 %           P2 - Penalise for more than 1 disparity diffrent from the neighbor
 % Outputs: Lr_slice - The cost the path C_slice. same dim as C_slice
 nLabels = size(C_slice, 1); % constant
-
 nCols = size(C_slice, 2);   % varies across dimensions
 
 % create const_grades:
@@ -219,7 +219,6 @@ const_grades = zeros(nLabels, 'double');
 
 const_grades(abs(XX - YY) == 1) = P1;
 const_grades(abs(XX - YY) > 1) = P2;
-disp(const_grades)
 
 % init L_slice
 Lr_slice = zeros(size(C_slice));
@@ -228,15 +227,13 @@ Lr_slice(:, 1) = C_slice(:,1);
 % iterate over slice direction
 for col = 2:nCols
     L_slice_prev = Lr_slice(:,col-1);
-    
     % calculate C and M. Eq. (12) in the paper
     C = C_slice(:,col);
-    M = min(repmat(L_slice_prev',nLabels,1) + const_grades, [], 2);
-    
+    M = min(repmat(L_slice_prev',nLabels,1) + const_grades, [], 2);    
     % save the result in L_slice. Eq. (13) in the paper
     Lr_slice(:,col) = C + M - min(L_slice_prev);
-
 end
+
 
 end % evaluatePathCost
 
