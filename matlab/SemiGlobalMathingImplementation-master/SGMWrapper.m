@@ -107,8 +107,7 @@ for dir = 1:directions_num
         %disp(b)
         %Extract path from Cost array
         inds = directionBasedRemap(dir, b, size_x, size_y, size_d);
-        slice = reshape(C(inds), [size(inds,1)/size_d, size_d]); %%dimensions
-        %disp(size(slice))
+        slice = reshape(C(inds), [size(inds,1)/size_d, size_d]); %%dimensions        
         %If path exist evaluate the path cost
         if all(size(slice) ~= 0)
             
@@ -167,33 +166,28 @@ switch direction
         a1=1; a2=-1; flip_order=0; 
 end
 
+
 if (a1 ~= 0)
-    x_inds = 1:size_x;
-    y_inds = (a2*x_inds+b)*a1; % a1 is either 1 or -1    
+    x_inds = 1:size_x;    
+    y_inds = (a2*x_inds+b)*a1; % a1 is either 1 or -1     
     inds_in = find(y_inds >= 1 & y_inds <= size_y);
-    
+        
 else
     y_inds = 1:size_y;    
     x_inds = -1*b*a2*ones(size(y_inds));    
     inds_in = find(x_inds >= 1 & x_inds <= size_x);
-    disp(size(inds_in))
     
 end
 
 x_inds = x_inds(inds_in);
-disp(size(x_inds))
-disp(x_inds)
 y_inds = y_inds(inds_in);
 
 slice_length = size(x_inds, 2);
 x_inds = repmat(x_inds, 1, size_d)';
-disp(size(x_inds))
-disp(x_inds)
 y_inds = repmat(y_inds, 1, size_d)';
 
 z_inds = repmat(1:size_d, slice_length, 1);
 z_inds = z_inds(:);
-
 
 % Flip based on direction
 if flip_order
@@ -202,9 +196,8 @@ if flip_order
 end
 
 % Merge indices to inds vector- the remap vector
-
 inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds);
-
+disp(inds)
 end % directionBasedRemap
 
 

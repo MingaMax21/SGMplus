@@ -27,7 +27,7 @@ bS = 5 #float(input("enter block size (odd): "))
 bSf = np.float(5)
 
 # Disparity range [-input,...,+input]
-dR = 1 #float(input("enter +- disparity range: "))
+dR = 16 #float(input("enter +- disparity range: "))
 dR = np.arange(-dR,dR+1)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
@@ -119,7 +119,13 @@ dIm, cIm = rawCost(imL, imR, bS, dR, R)
 def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize lline a1*y = a2*x +b
 # different parameters a1, a2, b for each direction
-# fo is parameter for negating signs, pointing in opposite direction    
+# fo is parameter for negating signs, pointing in opposite direction
+
+# debug varss
+    dMax = dimX+dimY
+    db1 = 0
+    db2 = 0
+    
     if d == 0:
         a1 =1
         a2 = 0 
@@ -154,46 +160,50 @@ def diReMap(d, pind, dimX, dimY, dimD):
         fo = 0    
 
     if a1 != 0:
-        x_inds = np.arange(0,dimX)                       
-        y_inds = (a2*x_inds.T+pind)*a1
-        inds_in = np.where(np.logical_and(y_inds>0, y_inds <= dimY))
-        inds_in = inds_in[0]
+        x_inds = np.arange(0,dimX) # CHECK                        
+        y_inds = (a2*x_inds.T+pind)*a1 # CHECK        
+        inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))        
+        inds_in = inds_in[0] # CHECK      
                 
     else:
 
-        y_inds = np.arange(0,dimY)        
-        x_inds = -1*pind*a2* np.ones(y_inds.shape[0])
-        inds_in = np.where(np.logical_and(x_inds>0, x_inds <= dimX)) 
-        inds_in = inds_in[0]
+        y_inds = np.arange(0,dimY) # CHECK                   
+        x_inds = -1*pind*a2* np.ones(y_inds.shape[0]) # off by 2        
+        inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX)) 
+        inds_in = inds_in[0]        
         
-    x_inds = x_inds[inds_in]
-    print(x_inds.shape)
-    print(x_inds)
-    y_inds = y_inds[inds_in]
-   
-    # !!! up to here no issues !!! 
+    x_inds = x_inds[inds_in]    # CHECK
+    y_inds = y_inds[inds_in]    # CHECK
     
-    slLen = x_inds.shape[0]
-    x_inds = np.kron(np.ones((slLen*dimD,1)), x_inds).ravel()                   #repmat(x_inds, 1, size_d)'
-    print(x_inds.shape)
-    print(x_inds)
-    y_inds = np.kron(np.ones((x_inds.shape[0]*dimD,1)),y_inds)
+    x_inds = np.kron(np.ones((dimD,1)), x_inds).ravel()   # CHECK                #repmat(x_inds, 1, size_d)'
+    y_inds = np.kron(np.ones((dimD,1)), y_inds).ravel()   # CHECK
+     
+    if x_inds.shape[0] == 0:        
+        z_inds = np.empty(0)
+        
+    else:
+        help1 = np.arange(0,dimD) 
+        help2 = int((x_inds.shape[0]/33))
+        z_inds = np.kron(np.ones((help2,1)), help1).ravel(1)     
     
-    help1 = np.arange(0,dimD)
-    # z_inds = np.kron(np.ones((slLen,1)), help1)
-    # z_inds = z_inds.ravel(1)
-
-    
-    # Flip based on direction
+    # !!! up to here no issues !!!     
+#    Flip based on direction
     if fo == 1:
-        x_inds = np.fliplr(x_inds)
-        y_inds = np.fliplr(y_inds)
-        
+        x_inds = np.flip(x_inds)
+        y_inds = np.flip(y_inds)
+    
+    x_inds = x_inds.astype(int)
+    y_inds = y_inds.astype(int)   
+    z_inds = z_inds.astype(int)       
     # Merge indices to inds vector
     
-    inds = y_inds
+    indMat = (y_inds,x_inds,z_inds)
     
-    return inds_in, inds
+    dims = (dimY, dimX, dimD)
+    #inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds);
+    inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing
+
+    return inds
 
 def pathCost(slice1, p1, p2):
     gSlice = 0
@@ -213,10 +223,11 @@ def costAgg(cIm, p1, p2, nP):
         
         # iterate over paths in direction
         for p in range(2*dimMax):
-            pind = p-dimMax
-            inds, inds_in = diReMap(d, pind, dimX, dimY, dimD)
-            #print(inds_in.shape)
+            pind = p-dimMax-1
+            inds = diReMap(d, pind, dimX, dimY, dimD)            
             #slice = reshape(cIm(inds), [inds.shape[0] / dimD.shape[0], dimD.shape[0]])
+            
+            
             #print(pind)
             # extract path from cost array
             
