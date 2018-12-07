@@ -103,15 +103,13 @@ for dir = 1:directions_num
     Li = zeros(size(C), 'double'); %temp buffer
     
     %Iterate over all paths in specific direction
-    for b = -1*max_b : max_b
-        %disp(b)
+    for b = -1*max_b : max_b        
         %Extract path from Cost array
         inds = directionBasedRemap(dir, b, size_x, size_y, size_d);
         slice = reshape(C(inds), [size(inds,1)/size_d, size_d]); %%dimensions
-        %disp(size(slice))
+        
         %If path exist evaluate the path cost
         if all(size(slice) ~= 0)
-            
             %Evaluate cost over the path
             graded_slice = evaluatePathCost(slice',P1,P2)';
             Li(inds) = graded_slice(:);
@@ -167,34 +165,28 @@ switch direction
         a1=1; a2=-1; flip_order=0; 
 end
 
+
 if (a1 ~= 0)
-    x_inds = 1:size_x;
-    disp(size(x_inds))
-    y_inds = (a2*x_inds+b)*a1; % a1 is either 1 or -1
-    disp(y_inds)
+    x_inds = 1:size_x;    
+    y_inds = (a2*x_inds+b)*a1; % a1 is either 1 or -1     
     inds_in = find(y_inds >= 1 & y_inds <= size_y);
-    
+        
 else
-    y_inds = 1:size_y;
-    x_inds = -1*b*a2*ones(size(y_inds));
+    y_inds = 1:size_y;    
+    x_inds = -1*b*a2*ones(size(y_inds));    
     inds_in = find(x_inds >= 1 & x_inds <= size_x);
+    
 end
 
-
-
 x_inds = x_inds(inds_in);
-
 y_inds = y_inds(inds_in);
-
 
 slice_length = size(x_inds, 2);
 x_inds = repmat(x_inds, 1, size_d)';
-
 y_inds = repmat(y_inds, 1, size_d)';
 
 z_inds = repmat(1:size_d, slice_length, 1);
 z_inds = z_inds(:);
-
 
 % Flip based on direction
 if flip_order
@@ -203,9 +195,7 @@ if flip_order
 end
 
 % Merge indices to inds vector- the remap vector
-
 inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds);
-
 end % directionBasedRemap
 
 
@@ -217,16 +207,16 @@ function Lr_slice = evaluatePathCost(C_slice, P1, P2)
 %           P1 - Penalise for 1 disparity different from the neighbor
 %           P2 - Penalise for more than 1 disparity diffrent from the neighbor
 % Outputs: Lr_slice - The cost the path C_slice. same dim as C_slice
-
-
-nLabels = size(C_slice, 1);
-nCols = size(C_slice, 2);
-
+nLabels = size(C_slice, 1); % constant
+disp(nLabels)
+nCols = size(C_slice, 2);   % varies across dimensions
+disp(nCols)
 % create const_grades:
 % the constant part of the cost for disparity from YY to move to disp from XX
 xx = 1:nLabels;
 [YY, XX] = meshgrid(xx,xx);
 const_grades = zeros(nLabels, 'double');
+
 const_grades(abs(XX - YY) == 1) = P1;
 const_grades(abs(XX - YY) > 1) = P2;
 
@@ -323,5 +313,5 @@ min_val = min(C(:));
 max_val = max(C(:));
 
 C = 255.0*(C - min_val)/(max_val-min_val);
-
+%disp(C)
 end

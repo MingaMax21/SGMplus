@@ -103,14 +103,13 @@ for dir = 1:directions_num
     Li = zeros(size(C), 'double'); %temp buffer
     
     %Iterate over all paths in specific direction
-    for b = -1*max_b : max_b
-        %disp(b)
+    for b = -1*max_b : max_b        
         %Extract path from Cost array
         inds = directionBasedRemap(dir, b, size_x, size_y, size_d);
-        slice = reshape(C(inds), [size(inds,1)/size_d, size_d]); %%dimensions        
+        slice = reshape(C(inds), [size(inds,1)/size_d, size_d]); %%dimensions
+        
         %If path exist evaluate the path cost
         if all(size(slice) ~= 0)
-            
             %Evaluate cost over the path
             graded_slice = evaluatePathCost(slice',P1,P2)';
             Li(inds) = graded_slice(:);
@@ -197,7 +196,6 @@ end
 
 % Merge indices to inds vector- the remap vector
 inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds);
-disp(inds)
 end % directionBasedRemap
 
 
@@ -209,18 +207,19 @@ function Lr_slice = evaluatePathCost(C_slice, P1, P2)
 %           P1 - Penalise for 1 disparity different from the neighbor
 %           P2 - Penalise for more than 1 disparity diffrent from the neighbor
 % Outputs: Lr_slice - The cost the path C_slice. same dim as C_slice
+nLabels = size(C_slice, 1); % constant
 
-
-nLabels = size(C_slice, 1);
-nCols = size(C_slice, 2);
+nCols = size(C_slice, 2);   % varies across dimensions
 
 % create const_grades:
 % the constant part of the cost for disparity from YY to move to disp from XX
 xx = 1:nLabels;
 [YY, XX] = meshgrid(xx,xx);
 const_grades = zeros(nLabels, 'double');
+
 const_grades(abs(XX - YY) == 1) = P1;
 const_grades(abs(XX - YY) > 1) = P2;
+disp(const_grades)
 
 % init L_slice
 Lr_slice = zeros(size(C_slice));
@@ -315,5 +314,5 @@ min_val = min(C(:));
 max_val = max(C(:));
 
 C = 255.0*(C - min_val)/(max_val-min_val);
-
+%disp(C)
 end

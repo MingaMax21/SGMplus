@@ -59,7 +59,7 @@ def rawCost(imL, imR, bS, dR, R):
     
     # initialize cost image (X x Y x disp_range)
     cIm =  np.zeros((imL.shape[0],imL.shape[1], R))
-    cIm = cIm.astype(np.int16)
+    cIm = cIm.astype(np.float)
     # initialize difference image (X x Y x 1)
     dIm = np.zeros((imL.shape[0], imL.shape[1]))
     dIm = dIm.astype(np.int16)     
@@ -87,7 +87,7 @@ def rawCost(imL, imR, bS, dR, R):
         dIm[:, bL[0] : bL[1]] = imR[:, bL[0]:bL[1]]  - imL[:, bR[0]:bR[1]]
         dIm = abs(dIm)
         
-        # Do border handling (VERY VERY BAD, TODO!)
+        # Pre-convolution border handling (VERY VERY BAD, TODO!)
         # Left
         if i <= 0:
             dog = dIm[:,bL[0]]
@@ -104,14 +104,19 @@ def rawCost(imL, imR, bS, dR, R):
             #dog2 = dIm[:,bL[1]-1] * np.ones(1,dIm.shape[1] - bL[1]+1) 
             dIm[:, bL[1]:bR[1]] = np.sqrt(mag2.T)
         
-        # calculate sums with ones convolution
-        flt = np.ones([bS,bS])
+        # calculate normalized sums with ones convolution
+        flt = np.ones([bS,bS])/(bS*bS)
         #print(i+dR[0])
         cIm[:,:,i-dR[0]] = signal.convolve2d(dIm, flt, mode='same')
         
+        # Post-convolution border handling: TODO!
         # normalize
-
-        #i+=1
+        #minVal = np.amin(cIm)
+        #maxVal = np.amax(cIm)
+        #print(minVal)
+        #print(maxVal)
+        
+        
     return dIm, cIm
     
 dIm, cIm = rawCost(imL, imR, bS, dR, R)
@@ -120,11 +125,6 @@ def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize lline a1*y = a2*x +b
 # different parameters a1, a2, b for each direction
 # fo is parameter for negating signs, pointing in opposite direction
-
-# debug varss
-    dMax = dimX+dimY
-    db1 = 0
-    db2 = 0
     
     if d == 0:
         a1 =1
@@ -160,23 +160,23 @@ def diReMap(d, pind, dimX, dimY, dimD):
         fo = 0    
 
     if a1 != 0:
-        x_inds = np.arange(0,dimX) # CHECK                        
-        y_inds = (a2*x_inds.T+pind)*a1 # CHECK        
+        x_inds = np.arange(0,dimX)                
+        y_inds = (a2*x_inds.T+pind)*a1        
         inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))        
-        inds_in = inds_in[0] # CHECK      
+        inds_in = inds_in[0]      
                 
     else:
 
-        y_inds = np.arange(0,dimY) # CHECK                   
+        y_inds = np.arange(0,dimY)                 
         x_inds = -1*pind*a2* np.ones(y_inds.shape[0]) # off by 2        
-        inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX)) 
+        inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
         inds_in = inds_in[0]        
         
-    x_inds = x_inds[inds_in]    # CHECK
-    y_inds = y_inds[inds_in]    # CHECK
+    x_inds = x_inds[inds_in]
+    y_inds = y_inds[inds_in]
     
-    x_inds = np.kron(np.ones((dimD,1)), x_inds).ravel()   # CHECK                #repmat(x_inds, 1, size_d)'
-    y_inds = np.kron(np.ones((dimD,1)), y_inds).ravel()   # CHECK
+    x_inds = np.kron(np.ones((dimD,1)), x_inds).ravel()
+    y_inds = np.kron(np.ones((dimD,1)), y_inds).ravel()
      
     if x_inds.shape[0] == 0:        
         z_inds = np.empty(0)
@@ -186,7 +186,6 @@ def diReMap(d, pind, dimX, dimY, dimD):
         help2 = int((x_inds.shape[0]/33))
         z_inds = np.kron(np.ones((help2,1)), help1).ravel(1)     
     
-    # !!! up to here no issues !!!     
 #    Flip based on direction
     if fo == 1:
         x_inds = np.flip(x_inds)
@@ -194,18 +193,36 @@ def diReMap(d, pind, dimX, dimY, dimD):
     
     x_inds = x_inds.astype(int)
     y_inds = y_inds.astype(int)   
-    z_inds = z_inds.astype(int)       
-    # Merge indices to inds vector
-    
+    z_inds = z_inds.astype(int)
+       
+    # Merge indices to inds tuple    
     indMat = (y_inds,x_inds,z_inds)
-    
+    # Create dims tuple    
     dims = (dimY, dimX, dimD)
-    #inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds);
+    #inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds)  (MATLAB equivalent)
     inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing
 
-    return inds
+    return inds, indMat
 
-def pathCost(slice1, p1, p2):
+def pathCost(slC, p1, p2):
+    #print(slC.shape)
+    nL = slC.shape[0]   # labels
+    nC = slC.shape[1]   # columns
+    
+    # constant grades matrix
+    xx = np.arange(0,nL)
+    XX,YY = np.meshgrid(xx,xx,sparse=False,indexing='ij')
+    cGrad = np.zeros((nL,nL))
+    
+    #write values into cGrad matrix
+    print(cGrad.shape)
+    
+#    cGrad[np.where(cGrad[abs(XX-YY)]==1)] = 5
+    
+    #cGrad[abs(XX-YY)] ==1) = p1
+    #cGrad[abs(XX-YY)] > 1) = p2
+    #print(cGrad)
+    
     gSlice = 0
     return(gSlice)
 
@@ -224,12 +241,22 @@ def costAgg(cIm, p1, p2, nP):
         # iterate over paths in direction
         for p in range(2*dimMax):
             pind = p-dimMax-1
-            inds = diReMap(d, pind, dimX, dimY, dimD)            
-            #slice = reshape(cIm(inds), [inds.shape[0] / dimD.shape[0], dimD.shape[0]])
-            
-            
-            #print(pind)
-            # extract path from cost array
+            inds, indMat = diReMap(d, pind, dimX, dimY, dimD)
+            h1 = cIm[indMat]
+
+            h2 = int(inds.shape[0]/dimD)
+            slC = np.reshape(h1, [h2, dimD],order='F')
+            #print(slC)
+            #print(slC.shape)
+
+            # If path exists:
+            if np.all(slC.shape) != 0:
+                #print(slC.shape)
+                gSlice = pathCost(slC.T, p1, p2)
+                #Li[inds] = gSlice[:]
+                #1: evaluate cost
+                #2: assign to output
+                
             
     
     return lIi

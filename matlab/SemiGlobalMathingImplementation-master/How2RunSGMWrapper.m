@@ -15,12 +15,8 @@ params.disparity_range = [-16 16];
 % Penalise disparity different than 1 for neighbor 
 params.P1 = (1/2)*params.block_size.^2;
 
-disp(params.P1)
-
 % Penalise for more than 1 disparity different from the neighbor
 params.P2 = (1/16)*32*params.block_size.^2; 
-
-disp(params.P2)
 
 % Number of SGM path direction
 params.directions_num = 8; 
