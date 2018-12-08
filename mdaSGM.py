@@ -3,13 +3,13 @@
 """
 Created on Wed Dec  5 14:04:23 2018
 
-mono depth assisted Semi-Global Matching
+"monocular depth assisted Semi-Global Matching (mdaSGM)"
 
-@author: max hoedel
+@author: max hoedel, Technische Universitaet Muenchen, 2018
+[credit: the base code of this program (no "mda") is based on the MATLAB code of Hirschmueller, 2008 (IEEE 30(2):328-341) ]
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.image as img
 from skimage import color
 from skimage import io
 from skimage import img_as_ubyte
@@ -53,10 +53,7 @@ axes.set_title("imR")
 axes.imshow(imR,cmap='gray')
 plt.show()
 
-def rawCost(imL, imR, bS, dR, R):
-    # input: 2 images, matching-block size, disp_range vector, disp_range val
-    # Calculates raw cost and convoluted block cost for 2 images across range
-    
+def rawCost(imL, imR, bS, dR, R):    
     # initialize cost image (X x Y x disp_range)
     cIm =  np.zeros((imL.shape[0],imL.shape[1], R))
     cIm = cIm.astype(np.float)
@@ -65,9 +62,6 @@ def rawCost(imL, imR, bS, dR, R):
     dIm = dIm.astype(np.int16)     
 
     # Border constraints
-    #for i in range(0):
-    #i = -16
-    #while i ==-16:
     for i in dR: # == 5:    
         if i < 0:
             l = i
@@ -79,49 +73,40 @@ def rawCost(imL, imR, bS, dR, R):
             l = 0
             r = 0
         
-        # Calculate borders
-        bL = np.array([1, imL.shape[1]]) - np.array([l, r])  
+        # Calculate borders        
+        bL = np.array([1, imL.shape[1]]) - np.array([l, r])
         bR = bL + np.array([i,i])
            
         # Difference image within borders                
         dIm[:, bL[0] : bL[1]] = imR[:, bL[0]:bL[1]]  - imL[:, bR[0]:bR[1]]
-        dIm = abs(dIm)
+        dIm = np.abs(dIm)
         
         # Pre-convolution border handling (VERY VERY BAD, TODO!)
         # Left
         if i <= 0:
-            dog = dIm[:,bL[0]]
-            cat = ([dog]*bL[0])
-            mag = cat*dog
-            dIm[:,0:bL[0]]  = np.sqrt(mag.T)
+            lf1 = dIm[:,bL[0]]
+            lf2 = ([lf1]*bL[0])
+            lf = lf2*lf1
+            dIm[:,0:bL[0]]  = np.sqrt(lf.T)
         
         else :
         # Right
-            dog2 = dIm[:,bL[1]-1]
-            lol = dIm.shape[1]-bL[1]
-            cat2 = ([dog2]*lol)
-            mag2 = cat2 * dog2            
-            dIm[:, bL[1]:bR[1]] = np.sqrt(mag2.T)
+            rt1 = dIm[:,bL[1]-1]
+            rt2 = dIm.shape[1]-bL[1]
+            rt3 = ([rt1]*rt2)
+            rt = rt3 * rt1            
+            dIm[:, bL[1]:bR[1]] = np.sqrt(rt.T)
         
-        # calculate normalized sums with ones convolution
+        # calculate normalized sums (averages) with ones convolution
         flt = np.ones([bS,bS])/(bS*bS)
         cIm[:,:,i-dR[0]] = signal.convolve2d(dIm, flt, mode='same')
-        
-        # Post-convolution border handling: TODO!
-        # normalize
-        #minVal = np.amin(cIm)
-        #maxVal = np.amax(cIm)
-        #print(minVal)
-        #print(maxVal)
-        
-        
+                
     return dIm, cIm
     
 dIm, cIm = rawCost(imL, imR, bS, dR, R)
 
 def diReMap(d, pind, dimX, dimY, dimD):
-# parametrize lline a1*y = a2*x +b
-# different parameters a1, a2, b for each direction
+# parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
 # fo is parameter for negating signs, pointing in opposite direction    
     if d == 0:
         a1 =1
@@ -163,9 +148,8 @@ def diReMap(d, pind, dimX, dimY, dimD):
         inds_in = inds_in[0]      
                 
     else:
-
         y_inds = np.arange(0,dimY)                 
-        x_inds = -1*pind*a2* np.ones(y_inds.shape[0]) # off by 2        
+        x_inds = -1*pind*a2*np.ones(y_inds.shape[0]) # off by 2        
         inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
         inds_in = inds_in[0]        
         
@@ -181,7 +165,7 @@ def diReMap(d, pind, dimX, dimY, dimD):
     else:
         help1 = np.arange(0,dimD) 
         help2 = int((x_inds.shape[0]/33))
-        z_inds = np.kron(np.ones((help2,1)), help1).ravel(1)     
+        z_inds = np.kron(np.ones((help2,1)), help1).ravel('F')     
     
 #    Flip based on direction
     if fo == 1:
@@ -196,13 +180,12 @@ def diReMap(d, pind, dimX, dimY, dimD):
     indMat = (y_inds,x_inds,z_inds)
     # Create dims tuple    
     dims = (dimY, dimX, dimD)
-    #inds = sub2ind([size_y size_x size_d], y_inds, x_inds, z_inds)  (MATLAB equivalent)
     inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing
-
+    
     return inds, indMat
 
 def pathCost(slC, p1, p2):
-    #print(slC.shape)
+
     nL = slC.shape[0]   # labels
     nC = slC.shape[1]   # columns
     
@@ -226,16 +209,14 @@ def pathCost(slC, p1, p2):
         C = slC[:,c]                          
         M1 = np.kron(np.ones((nL,1)), lrSlast.T)
         M = np.amin(M1 + cGrad, axis=1);
-        lrS[:,c] = C+M - min(lrSlast)
+        lrS[:,c] = C+M - np.amin(lrSlast)
         
     return(lrS)
-
 
 def costAgg(cIm, p1, p2, nP):
 # input: path slice of C (subC) , penalty terms
     dimY, dimX, dimD = cIm.shape
-    dimMax = dimX + dimY
-    
+    dimMax = dimX + dimY    
     lIm = np.zeros((dimY, dimX, dimD, nP))
     
     # iterate over directions
@@ -245,17 +226,15 @@ def costAgg(cIm, p1, p2, nP):
         # iterate over paths in direction
         for p in range(2*dimMax):
             pind = p-dimMax-1
-            inds, indMat = diReMap(d, pind, dimX, dimY, dimD)
+            inds, indMat = diReMap(d, pind, dimX, dimY, dimD)            
             h1 = cIm[indMat]
-
             h2 = int(inds.shape[0]/dimD)
             slC = np.reshape(h1, [h2, dimD],order='F')
 
             # If path exists:
             if np.all(slC.shape) != 0:
                 # evaluate cost
-                lrS = pathCost(slC.T, p1, p2).T
-
+                lrS = pathCost(slC.T, p1, p2)
                 # assign to output
                 lIi[indMat] = lrS.flatten()
                 lIm[:,:,:,d] = lIi
@@ -265,11 +244,10 @@ def costAgg(cIm, p1, p2, nP):
 lIm = costAgg(cIm, p1, p2, nP)
 
 def dispMap(lIm, dR):
+    
     S = np.sum(lIm,axis=3)
-    print(S.shape)
-    dMap = np.argmin(S,axis=2)
-    dMap = dMap + dR[0]
-    #dMap = 0
+    dMap = np.argmin(S,axis=2)+dR[0]
+
     return dMap
 
 dMap = dispMap(lIm, dR)
@@ -280,8 +258,3 @@ axes.set_ylabel("Y")
 axes.set_title("Disparity Image")
 axes.imshow(dMap,cmap='gray')
 plt.show()
-
-
-
-
-

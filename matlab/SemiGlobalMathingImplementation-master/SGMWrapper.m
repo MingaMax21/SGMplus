@@ -71,7 +71,6 @@ assert(disparity_range(2) >  disparity_range(1));
 
 % Sum all paths. eq. (14) in the paper
 S = sum(Lr, 4);
-disp(size(S))
 [~, disparity_map] = min(S, [], 3);
 
 %Normalize based on disparity range
