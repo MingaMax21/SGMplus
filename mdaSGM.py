@@ -40,9 +40,10 @@ R  = dR.shape[0]
 p1 = (0.5 * bSf* bSf)
 p2 = (2 * bSf* bSf)
 
-# Number of paths
-nP = 8
+# Number of paths (SUPPORTS 1-8)
+nP = 2
 
+# Plot imput images
 fig,axes = plt.subplots(1,1)
 axes.set_xlabel("X")
 axes.set_ylabel("Y")
@@ -102,12 +103,12 @@ def rawCost(imL, imR, bS, dR, R):
             dIm[:, bL[1]:bR[1]] = np.sqrt(rt.T)
         
         # calculate normalized sums (averages) with ones convolution
-        flt = np.ones([bS,bS])/(bS*bS)
-        cIm[:,:,i-dR[0]] = signal.convolve2d(dIm, flt, mode='same')
+        flt = np.ones([bS,bS])
+        cIm[:,:,i-dR[0]] = signal.convolve2d(dIm, flt, mode='same')/(bS*bS)
                 
-    return dIm, cIm
+    return cIm
     
-dIm, cIm = rawCost(imL, imR, bS, dR, R)
+cIm = rawCost(imL, imR, bS, dR, R)
 
 def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
@@ -172,7 +173,7 @@ def diReMap(d, pind, dimX, dimY, dimD):
         
     else:
         help1 = np.arange(0,dimD) 
-        help2 = int((x_inds.shape[0]/33))
+        help2 = np.int((x_inds.shape[0]/33))
         z_inds = np.kron(np.ones((help2,1)), help1).ravel('F')     
 
     # Flip based on direction
@@ -198,11 +199,11 @@ def pathCost(slC, p1, p2):
     XX,YY = np.meshgrid(xx,xx,sparse=False,indexing='ij')
     cGrad = np.zeros((nL,nL))
     
-    #write values into cGrad matrix 
-    cGrad[abs(XX-YY) == 1] = p1
-    cGrad[abs(XX-YY) >  1] = p2
+    # write values into cGrad matrix 
+    cGrad[np.abs(XX-YY) == 1] = p1
+    cGrad[np.abs(XX-YY) >  1] = p2
     
-    #L slice matrix
+    # L slice matrix
     lrS = np.zeros(slC.shape)
     lrS[:,0] = slC[:,0]
 
@@ -234,8 +235,6 @@ def costAgg(cIm, p1, p2, nP):
             pind = p-dimMax-1            
             indMat = diReMap(d, pind, dimX, dimY, dimD)      
             inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing
-            #h1 = cIm[indMat]
-            #h2 = int(inds.shape[0]/dimD)           
             slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD)  , dimD],order='F')
             
             # If path exists:            
