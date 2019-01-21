@@ -10,28 +10,75 @@ Created on Wed Dec  5 14:04:23 2018
 """
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+from scipy.misc import imsave
 from skimage import color
 from skimage import io
 from skimage import img_as_ubyte
+from skimage import img_as_float32
+from skimage import feature
 from scipy import signal
+from skimage import transform
 import time
 
 # Start timer
 start = time.time()
 
-imL = color.rgb2gray(io.imread("./data/mtlb_ex1/imL.png"))      # ADAPT PATH
-imR = color.rgb2gray(io.imread("./data/mtlb_ex1/imR.png"))      # ADAPT PATH
+# Create library for filenames (avoid having to change code to switch images)
+#imSet = np.int(input('Please enter index of image set to be processed:\n[1]:Umbrella\n[2]:Piano\n[3]:Bust\n[4]:Recycle\n[5]:Motorcycle\n[6]:Mask\n\n:'))
+imSet = 4
+
+if   imSet == 1:
+    imL = color.rgb2gray(io.imread("./data/Umbrella-perfect/im0.png"))
+    imR = color.rgb2gray(io.imread("./data/Umbrella-perfect/im1.png"))
+    dpL = io.imread("./data/Umbrella-perfect/im0_depth.png")
+    dpR = io.imread("./data/Umbrella-perfect/im1_depth.png")
+elif imSet == 2:
+    imL = color.rgb2gray(io.imread("./data/Piano-perfect/im0.png"))
+    imR = color.rgb2gray(io.imread("./data/Piano-perfect/im1.png"))
+    dpL = io.imread("./data/Piano-perfect/im0_depth.png")
+    dpR = io.imread("./data/Piano-perfect/im1_depth.png")
+elif imSet == 3:
+    imL = color.rgb2gray(io.imread("./data/mtlb_ex1/imL.png"))
+    imR = color.rgb2gray(io.imread("./data/mtlb_ex1/imR.png"))
+    dpL = io.imread("./data/mtlb_ex1/imL.png")
+    dpR = io.imread("./data/mtlb_ex1/imL.png")
+elif imSet == 4:
+    imL = color.rgb2gray(io.imread("./data/Recycle-perfect/im0.png"))
+    imR = color.rgb2gray(io.imread("./data/Recycle-perfect/im1.png"))
+    dpL = io.imread("./data/Recycle-perfect/im0_depth.png")
+    dpR = io.imread("./data/Recycle-perfect/im1_depth.png")
+elif imSet == 5:
+    imL = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im0.png"))
+    imR = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im1.png"))
+    dpL = io.imread("./data/Motorcycle-perfect/im0_depth.png")
+    dpR = io.imread("./data/Motorcycle-perfect/im1_depth.png")
+elif imSet == 6:
+    imL = color.rgb2gray(io.imread("./data/Mask-perfect/im0.png"))
+    imR = color.rgb2gray(io.imread("./data/Mask-perfect/im1.png"))
+    dpL = io.imread("./data/Mask-perfect/im0_depth.png")
+    dpR = io.imread("./data/Mask-perfect/im1_depth.png")
+else:    
+    sys.exit('Invalid entry! Program terminated!')
+
+# Read Image and downsample to width = 360 and height = proportional
+h,w = imL.shape
+w2 = 360                        # ADJUST THIS PARAM FOR SCALING
+h2 = np.int(w2*(h/w))
+s2 = (h2,w2)
+imL = transform.resize(imL,s2)
+imR = transform.resize(imR,s2)
 imL = img_as_ubyte(imL)
 imR = img_as_ubyte(imR)
-imL = imL.astype(np.int16)    # Dumb workaround to make integer subtraction on images possible (TODO!)
+imL = imL.astype(np.int16)      # !!!TODO Dumb workaround to make integer subtraction on images possible 
 imR = imR.astype(np.int16)
 
 # Block size for sum aggregation
-bS = 5 #float(input("enter block size (odd): "))
+bS = 5 
 bSf = np.float(5)
 
 # Disparity range [-input,...,+input]
-dR = 16 #float(input("enter +- disparity range: "))
+dR = 16                                 # !!!TODO Unintentionally hard coded, expand to 24 if possible
 dR = np.arange(-dR,dR+1)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
@@ -41,7 +88,7 @@ p1 = (0.5 * bSf* bSf)
 p2 = (2 * bSf* bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 2
+nP = 4
 
 # Plot imput images
 fig,axes = plt.subplots(1,1)
@@ -57,6 +104,72 @@ axes.set_ylabel("Y")
 axes.set_title("imR")
 axes.imshow(imR,cmap='gray')
 plt.show()
+
+# Plot raw mono-depth-images:
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("dpL")
+axes.imshow(dpL,cmap='gray')
+plt.show()
+
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("dpR")
+axes.imshow(dpR,cmap='gray')
+plt.show()
+
+# Resample mono-depth images: CAUTION: Scaling is an issue
+hd,wd = dpL.shape
+dpL = transform.resize(dpL,s2)  # (s2 defined above for input images)
+dpR = transform.resize(dpR,s2)
+dpL = img_as_ubyte(dpL)
+dpR = img_as_ubyte(dpR)
+dpL = dpL.astype(np.int16)      # !!!TODO Dumb workaround to make integer subtraction on images possible 
+dpR = dpR.astype(np.int16)
+
+# Plot resampled mono-depth images
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("dpL")
+axes.imshow(dpL,cmap='gray')
+plt.show()
+
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("dpR")
+axes.imshow(dpR,cmap='gray')
+plt.show()
+
+# !!!TODO: adequately preprocess images and adress scaling difference
+
+# Calculate derivatives and look for jumps
+dpL = dpL/255
+dpR = dpR/255
+edL = feature.canny(dpL, sigma = 1)
+edR = feature.canny(dpR, sigma = 1)
+
+# Plot edge images
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("edL")
+axes.imshow(edL,cmap='gray')
+plt.show()
+
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("edR")
+axes.imshow(edR,cmap='gray')
+plt.show()
+
+# TODO work on line continuity
+
+# TODO create final edge map / list of "do-not-pass" points
 
 def rawCost(imL, imR, bS, dR, R):    
     # initialize cost image (X x Y x disp_range)
@@ -114,6 +227,7 @@ def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
 
 # Optimized boolean: Initialize all params,, rewrite as little as possible (still bad)
+# Better idea? Use library to avoid excessive logicals?
     a1 = 1
     a2 = 0
     fo = 0
@@ -122,35 +236,65 @@ def diReMap(d, pind, dimX, dimY, dimD):
         a1 =1
         #a2 = 0 
         #fo = 0
+        # x_inds = np.arange(0,dimX)                
+        # y_inds = (a2*x_inds+pind)*a1        
+        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))      
         
     elif d == 1:
         #a1 = 1
         a2 = 1
         #fo = 0
+        # x_inds = np.arange(0,dimX)                
+        # y_inds = (a2*x_inds+pind)*a1        
+        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))
+        
     elif d == 2:
         a1 = 0
         #a2 = 1
         #fo = 0
+        # y_inds = np.arange(0,dimY)                 
+        # x_inds = -1*pind*a2*np.ones(y_inds.shape[0])        
+        # inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
+        
     elif d == 3:
         a1 = 1
         a2 = -1
         fo = 1
+        # x_inds = np.arange(0,dimX)                
+        # y_inds = (a2*x_inds+pind)*a1        
+        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))     
+        
     elif d == 4:
         #a1 = 1
         a2 = 0
         #fo = 1
+        # x_inds = np.arange(0,dimX)                
+        # y_inds = (a2*x_inds+pind)*a1        
+        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))
+        
     elif d == 5:
         #a1 = 1
         a2 = 1
         #fo = 1
+        # x_inds = np.arange(0,dimX)                
+        # y_inds = (a2*x_inds+pind)*a1        
+        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))
+        
     elif d == 6:
         a1 = 0
         #a2 = 1
         #fo = 1
+        # y_inds = np.arange(0,dimY)                 
+        # x_inds = -1*pind*a2*np.ones(y_inds.shape[0])        
+        # inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
+        
     else:
         a1 = 1
         a2 = -1
-        fo = 0    
+        fo = 0
+        # x_inds = np.arange(0,dimX)                
+        # y_inds = (a2*x_inds+pind)*a1        
+        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))      
 
     if a1 != 0:
         x_inds = np.arange(0,dimX)                
@@ -234,7 +378,7 @@ def costAgg(cIm, p1, p2, nP):
         for p in np.nditer(dMax):
             pind = p-dimMax-1            
             indMat = diReMap(d, pind, dimX, dimY, dimD)      
-            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing
+            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)
             slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD)  , dimD],order='F')
             
             # If path exists:            
@@ -263,3 +407,5 @@ axes.imshow(dMap,cmap='gray')
 plt.show()
 
 print("--- %s seconds ---" % (time.time() - start))
+
+imsave('dMap.png',dMap)
