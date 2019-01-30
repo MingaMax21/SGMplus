@@ -11,6 +11,8 @@ Created on Wed Dec  5 14:04:23 2018
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import imageio
+import scipy.io as spio
 from scipy.misc import imsave
 from skimage import color
 from skimage import io
@@ -25,52 +27,79 @@ import time
 start = time.time()
 
 # Create library for filenames (avoid having to change code to switch images)
-#imSet = np.int(input('Please enter index of image set to be processed:\n[1]:Umbrella\n[2]:Piano\n[3]:Bust\n[4]:Recycle\n[5]:Motorcycle\n[6]:Mask\n\n:'))
-imSet = 4
+#imSet = np.int(input('Please enter index of image set to be processed:\n[1]:Motorcycle\n[2]:Piano\n[3]:Recycle\n\n:'))
+imSet = 3 #(debug)
 
+# Import L+R image pair, calib file, as well as metric depth maps
 if   imSet == 1:
-    imL = color.rgb2gray(io.imread("./data/Umbrella-perfect/im0.png"))
-    imR = color.rgb2gray(io.imread("./data/Umbrella-perfect/im1.png"))
-    dpL = io.imread("./data/Umbrella-perfect/im0_depth.png")
-    dpR = io.imread("./data/Umbrella-perfect/im1_depth.png")
+    imL = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im0_resized.png"))
+    imR = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im1_resized.png"))
+    dpL = spio.loadmat("./data/Motorcycle-perfect/im0_results.mat")
+    dpL = dpL["pred_depths"]
+    dpR = spio.loadmat("./data/Motorcycle-perfect/im1_results.mat")
+    dpR = dpR["pred_depths"]
+    cal = open('./data/Motorcycle-perfect/calib.txt', 'r')
+
 elif imSet == 2:
-    imL = color.rgb2gray(io.imread("./data/Piano-perfect/im0.png"))
-    imR = color.rgb2gray(io.imread("./data/Piano-perfect/im1.png"))
-    dpL = io.imread("./data/Piano-perfect/im0_depth.png")
-    dpR = io.imread("./data/Piano-perfect/im1_depth.png")
+    imL = color.rgb2gray(io.imread("./data/Piano-perfect/im0_resized.png"))
+    imR = color.rgb2gray(io.imread("./data/Piano-perfect/im1_resized.png"))
+    dpL = spio.loadmat("./data/Piano-perfect/im0_results.mat")
+    dpL = dpL["pred_depths"]
+    dpR = spio.loadmat("./data/Piano-perfect/im1_results.mat")
+    dpR = dpR["pred_depths"]
+    cal = open('./data/Piano-perfect/calib.txt', 'r')
+    
 elif imSet == 3:
-    imL = color.rgb2gray(io.imread("./data/mtlb_ex1/imL.png"))
-    imR = color.rgb2gray(io.imread("./data/mtlb_ex1/imR.png"))
-    dpL = io.imread("./data/mtlb_ex1/imL.png")
-    dpR = io.imread("./data/mtlb_ex1/imL.png")
-elif imSet == 4:
-    imL = color.rgb2gray(io.imread("./data/Recycle-perfect/im0.png"))
-    imR = color.rgb2gray(io.imread("./data/Recycle-perfect/im1.png"))
-    dpL = io.imread("./data/Recycle-perfect/im0_depth.png")
-    dpR = io.imread("./data/Recycle-perfect/im1_depth.png")
-elif imSet == 5:
-    imL = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im0.png"))
-    imR = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im1.png"))
-    dpL = io.imread("./data/Motorcycle-perfect/im0_depth.png")
-    dpR = io.imread("./data/Motorcycle-perfect/im1_depth.png")
-elif imSet == 6:
-    imL = color.rgb2gray(io.imread("./data/Mask-perfect/im0.png"))
-    imR = color.rgb2gray(io.imread("./data/Mask-perfect/im1.png"))
-    dpL = io.imread("./data/Mask-perfect/im0_depth.png")
-    dpR = io.imread("./data/Mask-perfect/im1_depth.png")
+    imL = color.rgb2gray(io.imread("./data/Recycle-perfect/im0_resized.png"))
+    imR = color.rgb2gray(io.imread("./data/Recycle-perfect/im1_resized.png"))
+    dpL = spio.loadmat("./data/Recycle-perfect/im0_results.mat")
+    dpL = dpL["pred_depths"]
+    dpR = spio.loadmat("./data/Recycle-perfect/im1_results.mat")
+    dpR = dpR["pred_depths"]
+    cal = open('./data/Recycle-perfect/calib.txt', 'r')
+    
+#elif imSet == 4:
+    # imL = color.rgb2gray(io.imread("./data/Umbrella-perfect/im0_resized.png"))
+    # imR = color.rgb2gray(io.imread("./data/Umbrella-perfect/im1_resized.png"))
+    # dpL = io.imread("./data/Umbrella-perfect/im0_depth.png")
+    # dpR = io.imread("./data/Umbrella-perfect/im1_depth.png")
+    
+#elif imSet == 5:
+    # imL = color.rgb2gray(io.imread("./data/Mask-perfect/im0_resized.png"))
+    # imR = color.rgb2gray(io.imread("./data/Mask-perfect/im1_resized.png"))
+    # dpL = spio.loadmat("./data/Mask-perfect/im0_results.mat")
+    # dpL = dpL["pred_depths"]
+    # dpR = spio.loadmat("./data/Mask-perfect/im1_results.mat")
+    # dpR = dpR["pred_depths"]
+    
+#elif imSet == 6: 
+    # imL = color.rgb2gray(io.imread("./data/mtlb_ex1/imL.png"))
+    # imR = color.rgb2gray(io.imread("./data/mtlb_ex1/imR.png"))
+    # dpL = io.imread("./data/mtlb_ex1/imL.png")
+    # dpR = io.imread("./data/mtlb_ex1/imL.png")
+    
 else:    
     sys.exit('Invalid entry! Program terminated!')
 
-# Read Image and downsample to width = 360 and height = proportional
-h,w = imL.shape
-w2 = 360                        # ADJUST THIS PARAM FOR SCALING
-h2 = np.int(w2*(h/w))
-s2 = (h2,w2)
-imL = transform.resize(imL,s2)
-imR = transform.resize(imR,s2)
+# Read and split calibration file
+cam0, cam1, doffs, baseline, width, height, ndisp, isint, vmin, vmax, dyavg, dymax = cal.readlines()
+
+# Extract important metrics from calib file and convert to int/ fload:
+doffs    = np.float32(doffs[6:])         # x-difference of principle points (doffs = cx1-cx0)
+baseline = np.float32(baseline[9:])      # camera baseline in mm
+focus    = np.float32(cam0[6:13])        # focal length in pixels
+width    = np.int(width[6:])             # img width in pix
+height   = np.int(height[7:])            # img height in pix
+ndisp    = np.int(ndisp[6:])             # conservative bound on number of disparity levels
+vmin     = np.int(vmin[5:])              # tight bound on min disparity
+vmax     = np.int(vmax[5:])              # tight bound on max disparity
+#   --> Floating point disparity to depth: Z = baseline * focal length / (dispVal + doffs)
+
+# Workaround to make integer subtraction on images possible
+# Resized images from network are [304x228]    
 imL = img_as_ubyte(imL)
 imR = img_as_ubyte(imR)
-imL = imL.astype(np.int16)      # !!!TODO Dumb workaround to make integer subtraction on images possible 
+imL = imL.astype(np.int16)       
 imR = imR.astype(np.int16)
 
 # Block size for sum aggregation
@@ -78,7 +107,7 @@ bS = 5
 bSf = np.float(5)
 
 # Disparity range [-input,...,+input]
-dR = 16                                 # !!!TODO Unintentionally hard coded, expand to 24 if possible
+dR = 16                                 # !!!TODO Unintentionally hard coded, expand dynamically
 dR = np.arange(-dR,dR+1)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
@@ -120,29 +149,20 @@ axes.set_title("dpR")
 axes.imshow(dpR,cmap='gray')
 plt.show()
 
-# Resample mono-depth images: CAUTION: Scaling is an issue
-hd,wd = dpL.shape
-dpL = transform.resize(dpL,s2)  # (s2 defined above for input images)
-dpR = transform.resize(dpR,s2)
-dpL = img_as_ubyte(dpL)
-dpR = img_as_ubyte(dpR)
-dpL = dpL.astype(np.int16)      # !!!TODO Dumb workaround to make integer subtraction on images possible 
-dpR = dpR.astype(np.int16)
 
-# Plot resampled mono-depth images
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("dpL")
-axes.imshow(dpL,cmap='gray')
-plt.show()
+# Extract important metrics from depth images:
+# -> Total depth variation, local max depth variation
+#maxD =
 
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("dpR")
-axes.imshow(dpR,cmap='gray')
-plt.show()
+# # Resample mono-depth images: CAUTION: Scaling is an issue
+# hd,wd = dpL.shape
+# dpL = transform.resize(dpL,s2)  # (s2 defined above for input images)
+# dpR = transform.resize(dpR,s2)
+# dpL = img_as_ubyte(dpL)
+# dpR = img_as_ubyte(dpR)
+# dpL = dpL.astype(np.int16)      # !!!TODO Dumb workaround to make integer subtraction on images possible 
+# dpR = dpR.astype(np.int16)
+
 
 # !!!TODO: adequately preprocess images and adress scaling difference
 
@@ -226,7 +246,7 @@ cIm = rawCost(imL, imR, bS, dR, R)
 def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
 
-# Optimized boolean: Initialize all params,, rewrite as little as possible (still bad)
+# Optimized boolean: Initialize all params,, rewrite as little as possible
 # Better idea? Use library to avoid excessive logicals?
     a1 = 1
     a2 = 0
@@ -408,4 +428,4 @@ plt.show()
 
 print("--- %s seconds ---" % (time.time() - start))
 
-imsave('dMap.png',dMap)
+imageio.imsave('dMap.png',dMap.astype(np.uint8))
