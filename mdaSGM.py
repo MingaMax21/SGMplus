@@ -11,8 +11,10 @@ Created on Wed Dec  5 14:04:23 2018
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import re
 import imageio
 import scipy.io as spio
+from struct import *
 from scipy.misc import imsave
 from skimage import color
 from skimage import io
@@ -25,11 +27,52 @@ import time
 
 # Start timer
 start = time.time()
+print('mdaSGM initialized\n')
 
 # Create library for filenames (avoid having to change code to switch images)
-#imSet = np.int(input('Please enter index of image set to be processed:\n[1]:Motorcycle\n[2]:Piano\n[3]:Recycle\n\n:'))
-imSet = 3 #(debug)
+imSet = np.int(input('Please enter index of image set to be processed:\n[1]:Motorcycle\n[2]:Piano\n[3]:Recycle\n\n:'))
+#imSet = 3 #(debug)
 
+# Define function for reading GT disparities
+def readGT(f):    
+    with open(f,"rb") as f:
+        type=f.readline().decode('latin-1')
+        if "PF" in type:
+            channels=3
+        elif "Pf" in type:
+            channels=1
+        else:
+            print("ERROR: Not a valid PFM file",file=sys.stderr)
+            sys.exit(1)
+    # Line 2: width height
+        line=f.readline().decode('latin-1')
+        width,height=re.findall('\d+',line)
+        width=int(width)
+        height=int(height)
+    # Line 3: +ve number means big endian, negative means little endian
+        line=f.readline().decode('latin-1')
+        BigEndian=True
+        if "-" in line:
+            BigEndian=False
+    # Slurp all binary data
+        samples = width*height*channels;
+        buffer  = f.read(samples*4)
+    # Unpack floats with appropriate endianness
+        if BigEndian:
+            fmt=">"
+        else:
+            fmt="<"
+            fmt= fmt + str(samples) + "f"
+            img = np.array(unpack(fmt,buffer))    
+    # Modified: reshape tuple back into 2D image
+        gt = np.flipud(img.reshape(height,width))
+        #gt = gt[np.isfinite(gt)]
+    # replace inf with nan to allaw for max calculation
+        #gt[~np.isfinite(gt)] = np.nan
+        #gt = np.ma.masked_array(gt, ~np.isfinite(gt)).filled(np.nan)
+          
+    return(gt)
+    
 # Import L+R image pair, calib file, as well as metric depth maps
 if   imSet == 1:
     imL = color.rgb2gray(io.imread("./data/Motorcycle-perfect/im0_resized.png"))
@@ -38,6 +81,8 @@ if   imSet == 1:
     dpL = dpL["pred_depths"]
     dpR = spio.loadmat("./data/Motorcycle-perfect/im1_results.mat")
     dpR = dpR["pred_depths"]
+    gtL = readGT("./data/Motorcycle-perfect/disp1.pfm")
+    gtR = readGT("./data/Motorcycle-perfect/disp1.pfm")
     cal = open('./data/Motorcycle-perfect/calib.txt', 'r')
 
 elif imSet == 2:
@@ -47,6 +92,8 @@ elif imSet == 2:
     dpL = dpL["pred_depths"]
     dpR = spio.loadmat("./data/Piano-perfect/im1_results.mat")
     dpR = dpR["pred_depths"]
+    gtL = readGT("./data/Piano-perfect/disp0.pfm")
+    grR = readGT("./data/Piano-perfect/disp1.pfm")
     cal = open('./data/Piano-perfect/calib.txt', 'r')
     
 elif imSet == 3:
@@ -56,6 +103,8 @@ elif imSet == 3:
     dpL = dpL["pred_depths"]
     dpR = spio.loadmat("./data/Recycle-perfect/im1_results.mat")
     dpR = dpR["pred_depths"]
+    gtL = readGT("./data/Recycle-perfect/disp0.pfm")
+    gtR = readGT("./data/Recycle-perfect/disp1.pfm")
     cal = open('./data/Recycle-perfect/calib.txt', 'r')
     
 #elif imSet == 4:
@@ -81,6 +130,59 @@ elif imSet == 3:
 else:    
     sys.exit('Invalid entry! Program terminated!')
 
+# Plot imput images
+print("Input image left:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("imL")
+axes.imshow(imL,cmap='gray')
+plt.show()
+
+print("Input image right:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("imR")
+axes.imshow(imR,cmap='gray')
+plt.show()
+
+# Plot raw mono-depth-images:
+print("Mono-depth image left:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("dpL")
+axes.imshow(dpL,cmap='gray')
+plt.show()
+
+print("Mono-depth image right:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("dpR")
+axes.imshow(dpR,cmap='gray')
+plt.show()
+
+# Plot ground truth disparities
+print("Ground truth disp left:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("gtL")
+axes.imshow(gtL,cmap='gray')
+plt.show()
+
+print("Ground truth disp left:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("gtR")
+axes.imshow(gtR,cmap='gray')
+plt.show()
+
+print("Calculating ground truth depth maps...please wait")
+
 # Read and split calibration file
 cam0, cam1, doffs, baseline, width, height, ndisp, isint, vmin, vmax, dyavg, dymax = cal.readlines()
 
@@ -102,6 +204,81 @@ imR = img_as_ubyte(imR)
 imL = imL.astype(np.int16)       
 imR = imR.astype(np.int16)
 
+# Extract important metrics from depth matrices:
+dminL = dpL.min()
+dmaxL = dpL.max()
+dminR = dpR.min()
+dmaxR = dpR.max()
+dvarL = dmaxL - dminL
+dvarR = dmaxR - dminR
+
+# Calculate mean min distance in MM for a-priori max disparity
+meanminZ = 1000*(dminL+dminR)/2
+
+# Scaling factor for use of resized images
+scale = imL.shape[1]/width
+
+# maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
+dRange = ((baseline*focus)/meanminZ - doffs)*scale
+
+# Debugging: extract equivalent metrics from GT, calculate depth map, compare for plausibility
+gtminL = gtL[np.isfinite(gtL)]
+gtminL = gtminL.min()
+gtminR = gtR[np.isfinite(gtR)]
+gtminR = gtminR.min()
+gtmaxL = gtL[np.isfinite(gtL)]
+gtmaxL = gtmaxL.max()
+gtmaxR = gtR[np.isfinite(gtR)]
+gtmaxR = gtmaxR.max()
+gtvarL = gtmaxL - gtminL
+gtvarR = gtmaxR - gtminR
+
+#Create depthmap from GT disparity image 
+#!!! TODO unroll forfor
+gtdMapL = np.zeros((height, width))
+for i in range(gtdMapL.shape[0]):
+    for j in range(gtdMapL.shape[1]):
+        gtdMapL[i][j] = ((baseline*focus)/gtL[i][j]+doffs) / 1000
+        
+gtdMapR = np.zeros((height, width))
+for i in range(gtdMapL.shape[0]):
+    for j in range(gtdMapL.shape[1]):
+        gtdMapR[i][j] = ((baseline*focus)/gtR[i][j]+doffs) / 1000     
+
+gtdminL = gtdMapL.min()
+gtdminR = gtdMapR.min()
+gtdmaxL = gtdMapL.max()
+gtdmaxR = gtdMapR.max()
+gtdvarL = gtdmaxL - gtdminL
+gtdvarR = gtdmaxR - gtdminR
+
+print("Ground truth depth left:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("gtdMapL")
+axes.imshow(gtdMapL,cmap='gray')
+plt.show()
+
+print("Ground truth depth right:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("gtdMapL")
+axes.imshow(gtdMapR,cmap='gray')
+plt.show()        
+
+# Outputs before SGM calculation:
+print("Size of original input image: %s x %s \n" % (width, height))
+print("Sized of NN resized image: %s x %s \n" % (dpL.shape[1], dpL.shape[0]))
+print("Mono-depth range estimation (left): %s [m] \n" % (dvarL))
+print("Mono-depth range estimation (right): %s [m] \n" % (dvarR))
+print("Mono-depth disparity range estimation: %s [pix] \n" % (dRange))
+print("Ground truth disparity range (left): %s [pix] \n" % (gtvarL))
+print("Ground truth disparity range (right): %s [pix] \n" % (gtvarL))  
+print("Ground truth depth range (left): %s [m] \n" % (gtdvarL))
+print("Ground truth depth range (right): %s [m] \n" % (gtdvarL)) 
+
 # Block size for sum aggregation
 bS = 5 
 bSf = np.float(5)
@@ -119,58 +296,20 @@ p2 = (2 * bSf* bSf)
 # Number of paths (SUPPORTS 1-8)
 nP = 4
 
-# Plot imput images
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("imL")
-axes.imshow(imL,cmap='gray')
-plt.show()
-
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("imR")
-axes.imshow(imR,cmap='gray')
-plt.show()
-
-# Plot raw mono-depth-images:
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("dpL")
-axes.imshow(dpL,cmap='gray')
-plt.show()
-
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("dpR")
-axes.imshow(dpR,cmap='gray')
-plt.show()
-
-
-# Extract important metrics from depth images:
-# -> Total depth variation, local max depth variation
-#maxD =
-
 # # Resample mono-depth images: CAUTION: Scaling is an issue
 # hd,wd = dpL.shape
 # dpL = transform.resize(dpL,s2)  # (s2 defined above for input images)
 # dpR = transform.resize(dpR,s2)
 # dpL = img_as_ubyte(dpL)
 # dpR = img_as_ubyte(dpR)
-# dpL = dpL.astype(np.int16)      # !!!TODO Dumb workaround to make integer subtraction on images possible 
+# dpL = dpL.astype(np.int16)
 # dpR = dpR.astype(np.int16)
 
+# !!!TODO: adequately preprocess images and optimize filter
 
-# !!!TODO: adequately preprocess images and adress scaling difference
-
-# Calculate derivatives and look for jumps
-dpL = dpL/255
-dpR = dpR/255
-edL = feature.canny(dpL, sigma = 1)
-edR = feature.canny(dpR, sigma = 1)
+# Calculate derivatives and look for jumps (ADAPTIVE SIGMA!)
+edL = feature.canny(dpL, sigma = 7)
+edR = feature.canny(dpR, sigma = 7)
 
 # Plot edge images
 fig,axes = plt.subplots(1,1)
@@ -186,8 +325,6 @@ axes.set_ylabel("Y")
 axes.set_title("edR")
 axes.imshow(edR,cmap='gray')
 plt.show()
-
-# TODO work on line continuity
 
 # TODO create final edge map / list of "do-not-pass" points
 
