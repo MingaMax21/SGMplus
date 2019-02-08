@@ -63,7 +63,8 @@ def readGT(f):
         else:
             fmt="<"
             fmt= fmt + str(samples) + "f"
-            img = np.array(unpack(fmt,buffer))    
+            img = np.array(unpack(fmt,buffer))
+            
     # Modified: reshape tuple back into 2D image
         gt = np.flipud(img.reshape(height,width))
         #gt = gt[np.isfinite(gt)]
@@ -93,7 +94,7 @@ elif imSet == 2:
     dpR = spio.loadmat("./data/Piano-perfect/im1_results.mat")
     dpR = dpR["pred_depths"]
     gtL = readGT("./data/Piano-perfect/disp0.pfm")
-    grR = readGT("./data/Piano-perfect/disp1.pfm")
+    gtR = readGT("./data/Piano-perfect/disp1.pfm")
     cal = open('./data/Piano-perfect/calib.txt', 'r')
     
 elif imSet == 3:
@@ -197,6 +198,13 @@ vmin     = np.int(vmin[5:])              # tight bound on min disparity
 vmax     = np.int(vmax[5:])              # tight bound on max disparity
 #   --> Floating point disparity to depth: Z = baseline * focal length / (dispVal + doffs)
 
+# Scaling factors and resized dimensions
+width2 = imL.shape[1]
+height2 = imL.shape[0]
+scale = width2/width
+doffs2 = scale*doffs
+focus2 = scale*focus
+
 # Workaround to make integer subtraction on images possible
 # Resized images from network are [304x228]    
 imL = img_as_ubyte(imL)
@@ -215,9 +223,6 @@ dvarR = dmaxR - dminR
 # Calculate mean min distance in MM for a-priori max disparity
 meanminZ = 1000*(dminL+dminR)/2
 
-# Scaling factor for use of resized images
-scale = imL.shape[1]/width
-
 # maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
 dRange = ((baseline*focus)/meanminZ - doffs)*scale
 
@@ -233,17 +238,13 @@ gtmaxR = gtmaxR.max()
 gtvarL = gtmaxL - gtminL
 gtvarR = gtmaxR - gtminR
 
-#Create depthmap from GT disparity image 
-#!!! TODO unroll forfor
+# Create depthmap from GT disparity image 
+
 gtdMapL = np.zeros((height, width))
-for i in range(gtdMapL.shape[0]):
-    for j in range(gtdMapL.shape[1]):
-        gtdMapL[i][j] = ((baseline*focus)/gtL[i][j]+doffs) / 1000
+gtdMapL = ((baseline*focus)/(gtL+doffs)) / 1000
         
 gtdMapR = np.zeros((height, width))
-for i in range(gtdMapL.shape[0]):
-    for j in range(gtdMapL.shape[1]):
-        gtdMapR[i][j] = ((baseline*focus)/gtR[i][j]+doffs) / 1000     
+gtdMapR = ((baseline*focus)/(gtR+doffs)) / 1000     
 
 gtdminL = gtdMapL.min()
 gtdminR = gtdMapR.min()
@@ -252,12 +253,16 @@ gtdmaxR = gtdMapR.max()
 gtdvarL = gtdmaxL - gtdminL
 gtdvarR = gtdmaxR - gtdminR
 
+#mediandp = np.median(gtdMapL)
+#histdp = plt.hist([gtdMapL])
+
 print("Ground truth depth left:\n")
 fig,axes = plt.subplots(1,1)
 axes.set_xlabel("X")
 axes.set_ylabel("Y")
 axes.set_title("gtdMapL")
 axes.imshow(gtdMapL,cmap='gray')
+#plt.colorbar('gray')
 plt.show()
 
 print("Ground truth depth right:\n")
@@ -281,7 +286,7 @@ print("Ground truth depth range (right): %s [m] \n" % (gtdvarL))
 
 # Block size for sum aggregation
 bS = 5 
-bSf = np.float(5)
+bSf = np.float(bS)
 
 # Disparity range [-input,...,+input]
 dR = 16                                 # !!!TODO Unintentionally hard coded, expand dynamically
@@ -533,10 +538,31 @@ def costAgg(cIm, p1, p2, nP):
         print("---step %s ----" % (d))
         # iterate over paths in direction
         for p in np.nditer(dMax):
+            print(p)
             pind = p-dimMax-1            
             indMat = diReMap(d, pind, dimX, dimY, dimD)      
-            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)
-            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD)  , dimD],order='F')
+            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style) # !!! PROBLEM
+            
+           # inds2 = 
+           # Step 0:
+           # p0-532   inds -> 0
+           # p533-760 inds -> 10032
+           # p761-1063 inds -> 0
+           # Step 1:
+           # p0-229  inds -> 0
+           # p230-457  inds -> increase from 33 to 7524 in increments of 33
+           # p458-533 inds -> 7524
+           # p534-760 infd  -> decrease from 7524 to 33 in increments of 33
+           #p761-1063  inds ->0
+           # Step 2:
+           # p0-1063 inds -> 7524
+           # Step 3: 
+           # p0-532   inds -> 0
+           
+           
+            print(inds.shape[0])
+            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
+            #slC = np.reshape(cIm[indMat], [int(((dimD+1)*dimY-dimY)/dimD) , dimD],order='F')
             
             # If path exists:            
             if np.all(slC.shape) != 0:
@@ -556,11 +582,32 @@ S = np.sum(lIm,axis=3)
 # Final disparity map:
 dMap = np.argmin(S,axis=2)+dR[0]
 
+# Remove zero values
+dMap = dMap[np.isfinite(dMap)]
+dMap = dMap.reshape(height2,width2)
+
+# !!! TODO fix dRange. Temp debug fix: force to 0
+dMap = np.abs(dMap)
+
+
+# Depth map from disparity map
+dpMap = np.zeros((height2, width2))
+dpMap = ((baseline*focus2)/(dMap + doffs2)) / 1000
+
+print("SGM Disparity map:\n")
 fig,axes = plt.subplots(1,1)
 axes.set_xlabel("X")
 axes.set_ylabel("Y")
-axes.set_title("Disparity Image")
+axes.set_title("SGM Disparity Image")
 axes.imshow(dMap,cmap='gray')
+plt.show()
+
+print("SGM Depth map:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("SGM Depth Image")
+axes.imshow(dpMap,cmap='gray')
 plt.show()
 
 print("--- %s seconds ---" % (time.time() - start))
