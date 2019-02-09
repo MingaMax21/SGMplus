@@ -224,7 +224,7 @@ dvarR = dmaxR - dminR
 meanminZ = 1000*(dminL+dminR)/2
 
 # maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
-dRange = ((baseline*focus)/meanminZ - doffs)*scale
+dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs)*scale))
 
 # Debugging: extract equivalent metrics from GT, calculate depth map, compare for plausibility
 gtminL = gtL[np.isfinite(gtL)]
@@ -238,8 +238,7 @@ gtmaxR = gtmaxR.max()
 gtvarL = gtmaxL - gtminL
 gtvarR = gtmaxR - gtminR
 
-# Create depthmap from GT disparity image 
-
+# Create depthmap from GT disparity image
 gtdMapL = np.zeros((height, width))
 gtdMapL = ((baseline*focus)/(gtL+doffs)) / 1000
         
@@ -252,7 +251,8 @@ gtdmaxL = gtdMapL.max()
 gtdmaxR = gtdMapR.max()
 gtdvarL = gtdmaxL - gtdminL
 gtdvarR = gtdmaxR - gtdminR
-
+gtsvarL = gtvarL*scale
+gtsvarR = gtvarR*scale
 #mediandp = np.median(gtdMapL)
 #histdp = plt.hist([gtdMapL])
 
@@ -280,7 +280,9 @@ print("Mono-depth range estimation (left): %s [m] \n" % (dvarL))
 print("Mono-depth range estimation (right): %s [m] \n" % (dvarR))
 print("Mono-depth disparity range estimation: %s [pix] \n" % (dRange))
 print("Ground truth disparity range (left): %s [pix] \n" % (gtvarL))
-print("Ground truth disparity range (right): %s [pix] \n" % (gtvarL))  
+print("Ground truth disparity range (right): %s [pix] \n" % (gtvarL))
+print("Scaled ground truth disparity range (left): %s [pix] \n" % (gtsvarL))
+print("Scaled ground truth disparity range (right): %s [pix] \n" % (gtsvarL))   
 print("Ground truth depth range (left): %s [m] \n" % (gtdvarL))
 print("Ground truth depth range (right): %s [m] \n" % (gtdvarL)) 
 
@@ -289,7 +291,7 @@ bS = 5
 bSf = np.float(bS)
 
 # Disparity range [0,...,+input]
-dR = 11                                 # !!!TODO Unintentionally hard coded, expand dynamically
+dR = dRange #   11           # Dynamic, change here for manual dRange
 dR = np.arange(0,dR)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
@@ -299,7 +301,7 @@ p1 = (0.5 * bSf* bSf)
 p2 = (2 * bSf* bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 4
+nP = 8
 
 # !!!TODO: adequately preprocess images and optimize filter
 
@@ -385,78 +387,58 @@ def diReMap(d, pind, dimX, dimY, dimD):
     a2 = 0
     fo = 0
     
-    if d == 0:
+    # Paths ordered in Y,X system with origin in top left.
+    # Path 1 -> d=0, path 2 -> d=1 etc.
+    if d == 0: # Horiz to right
         a1 =1
         #a2 = 0 
         #fo = 0
-        # x_inds = np.arange(0,dimX)                
-        # y_inds = (a2*x_inds+pind)*a1        
-        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))      
-        
-    elif d == 1:
+
+    elif d == 1: # Down to right
         #a1 = 1
         a2 = 1
         #fo = 0
-        # x_inds = np.arange(0,dimX)                
-        # y_inds = (a2*x_inds+pind)*a1        
-        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))
         
-    elif d == 2:
+    elif d == 2: # Vert down
         a1 = 0
         #a2 = 1
         #fo = 0
-        # y_inds = np.arange(0,dimY)                 
-        # x_inds = -1*pind*a2*np.ones(y_inds.shape[0])        
-        # inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
         
-    elif d == 3:
+    elif d == 3: # Down to left
         a1 = 1
         a2 = -1
         fo = 1
-        # x_inds = np.arange(0,dimX)                
-        # y_inds = (a2*x_inds+pind)*a1        
-        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))     
         
-    elif d == 4:
+    elif d == 4: # Horiz left
         #a1 = 1
         a2 = 0
         #fo = 1
-        # x_inds = np.arange(0,dimX)                
-        # y_inds = (a2*x_inds+pind)*a1        
-        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))
         
-    elif d == 5:
+    elif d == 5: # Up to left
         #a1 = 1
         a2 = 1
         #fo = 1
-        # x_inds = np.arange(0,dimX)                
-        # y_inds = (a2*x_inds+pind)*a1        
-        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))
         
-    elif d == 6:
+    elif d == 6: # Vert up
         a1 = 0
         #a2 = 1
         #fo = 1
-        # y_inds = np.arange(0,dimY)                 
-        # x_inds = -1*pind*a2*np.ones(y_inds.shape[0])        
-        # inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
         
-    else:
+    else:   # Up to right
         a1 = 1
         a2 = -1
         fo = 0
-        # x_inds = np.arange(0,dimX)                
-        # y_inds = (a2*x_inds+pind)*a1        
-        # inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))      
 
+    # Valid for all paths except 3 and 7
     if a1 != 0:
         x_inds = np.arange(0,dimX)                
         y_inds = (a2*x_inds+pind)*a1        
         inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))        
-                
+    
+    # Only paths 3 and 7. Very expensive, improve!            
     else:
         y_inds = np.arange(0,dimY)                 
-        x_inds = -1*pind*a2*np.ones(y_inds.shape[0])        
+        x_inds = pind*a2*np.ones(y_inds.shape[0]) #!!! TODO make efficient      (Oiginally -1 at front of term) 
         inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
         
     x_inds = x_inds[inds_in[0]]
@@ -528,16 +510,11 @@ def costAgg(cIm, p1, p2, nP):
         print("--- %s seconds ---" % (time.time() - start))
         print("---step %s ----" % (d))
         # iterate over paths in direction
-        for p in np.nditer(dMax):
-            print(p)
-            #pind = p-dimMax-1      # Seems unnecessary, pass p instead of pind      
-            indMat = diReMap(d, p, dimX, dimY, dimD)      
-            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)
-
-            print(inds.shape)
-            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
-            #slC = np.reshape(cIm[indMat], [int(((dimD+1)*dimY-dimY)/dimD) , dimD],order='F')
-            
+        for p in np.nditer(dMax):           
+            pind = p-dimMax-1      # Seems unnecessary, pass p instead of pind to diReMap     
+            indMat = diReMap(d, pind, dimX, dimY, dimD)      
+            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
+            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')        
             # If path exists:            
             if np.all(slC.shape) != 0:
                 # evaluate cost
@@ -545,9 +522,10 @@ def costAgg(cIm, p1, p2, nP):
                 # assign to output
                 lIi[indMat]= lrS.flatten()
                 lIm[:,:,:,d] = lIi
-                         
+    print("--- %s seconds ---" % (time.time() - start))                     
     return lIm
 
+print("Calculating disparities in estimated range of %s pixels" % (dRange))
 lIm = costAgg(cIm, p1, p2, nP)
 
 # Sum across paths
@@ -559,9 +537,6 @@ dMap = np.argmin(S,axis=2)+dR[0]
 # Remove zero values
 dMap = dMap[np.isfinite(dMap)]
 dMap = dMap.reshape(height2,width2)
-
-# !!! TODO fix dRange. Temp debug fix: force to 0
-dMap = np.abs(dMap)
 
 # Depth map from disparity map
 dpMap = np.zeros((height2, width2))
@@ -586,3 +561,4 @@ plt.show()
 print("--- %s seconds ---" % (time.time() - start))
 
 imageio.imsave('dMap.png',dMap.astype(np.uint8))
+imageio.imsave('dpMap.png',dpMap.astype(np.uint8))
