@@ -288,9 +288,9 @@ print("Ground truth depth range (right): %s [m] \n" % (gtdvarL))
 bS = 5 
 bSf = np.float(bS)
 
-# Disparity range [-input,...,+input]
-dR = 16                                 # !!!TODO Unintentionally hard coded, expand dynamically
-dR = np.arange(-dR,dR+1)
+# Disparity range [0,...,+input]
+dR = 11                                 # !!!TODO Unintentionally hard coded, expand dynamically
+dR = np.arange(0,dR)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
 
@@ -300,15 +300,6 @@ p2 = (2 * bSf* bSf)
 
 # Number of paths (SUPPORTS 1-8)
 nP = 4
-
-# # Resample mono-depth images: CAUTION: Scaling is an issue
-# hd,wd = dpL.shape
-# dpL = transform.resize(dpL,s2)  # (s2 defined above for input images)
-# dpR = transform.resize(dpR,s2)
-# dpL = img_as_ubyte(dpL)
-# dpR = img_as_ubyte(dpR)
-# dpL = dpL.astype(np.int16)
-# dpR = dpR.astype(np.int16)
 
 # !!!TODO: adequately preprocess images and optimize filter
 
@@ -479,7 +470,7 @@ def diReMap(d, pind, dimX, dimY, dimD):
         
     else:
         help1 = np.arange(0,dimD) 
-        help2 = np.int((x_inds.shape[0]/33))
+        help2 = np.int((x_inds.shape[0]/dimD))
         z_inds = np.kron(np.ones((help2,1)), help1).ravel('F')     
 
     # Flip based on direction
@@ -539,28 +530,11 @@ def costAgg(cIm, p1, p2, nP):
         # iterate over paths in direction
         for p in np.nditer(dMax):
             print(p)
-            pind = p-dimMax-1            
-            indMat = diReMap(d, pind, dimX, dimY, dimD)      
-            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style) # !!! PROBLEM
-            
-           # inds2 = 
-           # Step 0:
-           # p0-532   inds -> 0
-           # p533-760 inds -> 10032
-           # p761-1063 inds -> 0
-           # Step 1:
-           # p0-229  inds -> 0
-           # p230-457  inds -> increase from 33 to 7524 in increments of 33
-           # p458-533 inds -> 7524
-           # p534-760 infd  -> decrease from 7524 to 33 in increments of 33
-           #p761-1063  inds ->0
-           # Step 2:
-           # p0-1063 inds -> 7524
-           # Step 3: 
-           # p0-532   inds -> 0
-           
-           
-            print(inds.shape[0])
+            #pind = p-dimMax-1      # Seems unnecessary, pass p instead of pind      
+            indMat = diReMap(d, p, dimX, dimY, dimD)      
+            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)
+
+            print(inds.shape)
             slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
             #slC = np.reshape(cIm[indMat], [int(((dimD+1)*dimY-dimY)/dimD) , dimD],order='F')
             
@@ -588,7 +562,6 @@ dMap = dMap.reshape(height2,width2)
 
 # !!! TODO fix dRange. Temp debug fix: force to 0
 dMap = np.abs(dMap)
-
 
 # Depth map from disparity map
 dpMap = np.zeros((height2, width2))
