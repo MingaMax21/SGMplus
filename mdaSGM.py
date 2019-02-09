@@ -14,7 +14,7 @@ import sys
 import re
 import imageio
 import scipy.io as spio
-from struct import *
+from struct import unpack
 from scipy.misc import imsave
 from skimage import color
 from skimage import io
@@ -200,8 +200,10 @@ vmax     = np.int(vmax[5:])              # tight bound on max disparity
 
 # Scaling factors and resized dimensions
 width2 = imL.shape[1]
+width3 = dpL.shape[1]
 height2 = imL.shape[0]
-scale = width2/width
+scale = width2/width # Scale for resized imgs
+scale2 = width3/width # Scale for monodepth map
 doffs2 = scale*doffs
 focus2 = scale*focus
 
@@ -224,7 +226,7 @@ dvarR = dmaxR - dminR
 meanminZ = 1000*(dminL+dminR)/2
 
 # maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
-dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs)*scale))
+dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs)*scale2))
 
 # Debugging: extract equivalent metrics from GT, calculate depth map, compare for plausibility
 gtminL = gtL[np.isfinite(gtL)]
@@ -291,7 +293,7 @@ bS = 5
 bSf = np.float(bS)
 
 # Disparity range [0,...,+input]
-dR = dRange #   11           # Dynamic, change here for manual dRange
+dR = 33#dRange #   11           # Dynamic, change here for manual dRange
 dR = np.arange(0,dR)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
@@ -390,7 +392,7 @@ def diReMap(d, pind, dimX, dimY, dimD):
     # Paths ordered in Y,X system with origin in top left.
     # Path 1 -> d=0, path 2 -> d=1 etc.
     if d == 0: # Horiz to right
-        a1 =1
+        a1 = 1
         #a2 = 0 
         #fo = 0
 
@@ -438,7 +440,7 @@ def diReMap(d, pind, dimX, dimY, dimD):
     # Only paths 3 and 7. Very expensive, improve!            
     else:
         y_inds = np.arange(0,dimY)                 
-        x_inds = pind*a2*np.ones(y_inds.shape[0]) #!!! TODO make efficient      (Oiginally -1 at front of term) 
+        x_inds = pind*np.ones(y_inds.shape[0]) # (Oiginally -1* at front of term, as well as a2=1 term,) 
         inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
         
     x_inds = x_inds[inds_in[0]]
@@ -470,8 +472,8 @@ def diReMap(d, pind, dimX, dimY, dimD):
     return indMat
 
 def pathCost(slC, p1, p2):
-
-    nL, nC = slC.shape   # labels, columns
+    # labels, columns
+    nL, nC = slC.shape   
     
     # constant grades matrix
     xx = np.arange(0,nL)
@@ -487,7 +489,6 @@ def pathCost(slC, p1, p2):
     lrS[:,0] = slC[:,0]
 
     for c in range(1,nC):
-
         # calculate values C and M
         C  = slC[:,c]                          
         M1 = np.kron(np.ones((nL,1)), lrS[:,c-1])
@@ -501,20 +502,21 @@ def costAgg(cIm, p1, p2, nP):
     dimY, dimX, dimD = cIm.shape
     dims = (dimY,dimX,dimD)
     dimMax = dimX + dimY
-    dMax = np.arange(0,2*dimMax)    
+    dMax = np.arange(-dimMax,dimMax)    
     lIm = np.zeros((dimY, dimX, dimD, nP))
     
     # iterate over directions
     for d in range(nP):
         lIi = np.zeros(cIm.shape)
         print("--- %s seconds ---" % (time.time() - start))
-        print("---step %s ----" % (d))
+        print("--- step %s ----" % (d))
+        
         # iterate over paths in direction
-        for p in np.nditer(dMax):           
-            pind = p-dimMax-1      # Seems unnecessary, pass p instead of pind to diReMap     
-            indMat = diReMap(d, pind, dimX, dimY, dimD)      
+        for p in np.nditer(dMax):  
+            indMat = diReMap(d, p, dimX, dimY, dimD)      
             inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
-            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')        
+            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
+            
             # If path exists:            
             if np.all(slC.shape) != 0:
                 # evaluate cost
@@ -522,6 +524,7 @@ def costAgg(cIm, p1, p2, nP):
                 # assign to output
                 lIi[indMat]= lrS.flatten()
                 lIm[:,:,:,d] = lIi
+                
     print("--- %s seconds ---" % (time.time() - start))                     
     return lIm
 
@@ -558,7 +561,7 @@ axes.set_title("SGM Depth Image")
 axes.imshow(dpMap,cmap='gray')
 plt.show()
 
-print("--- %s seconds ---" % (time.time() - start))
+print("Time elapsed: --- %s seconds ---" % (time.time() - start))
 
 imageio.imsave('dMap.png',dMap.astype(np.uint8))
 imageio.imsave('dpMap.png',dpMap.astype(np.uint8))
