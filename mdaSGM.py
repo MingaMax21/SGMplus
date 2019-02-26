@@ -362,13 +362,16 @@ cIm = rawCost(imL, imR, bS, dR, R)
 def diReMap(d, pind, dimX, dimY, dimD):
 # parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
 
+    #!!!TODO Debug mode for testing individual paths
+    
+    
 # Optimized boolean: Initialize all params,, rewrite as little as possible
 # Better idea? Use library to avoid excessive logicals?
     a1 = 1
     a2 = 0
     fo = 0
     
-    # Paths ordered in Y,X system with origin in top left.
+    # Paths ordered in X,Y system with origin in top left.
     # Path 1 -> d=0, path 2 -> d=1 etc.
     if d == 0: # Horiz to right
         a1 = 1
@@ -415,13 +418,13 @@ def diReMap(d, pind, dimX, dimY, dimD):
         x_inds = np.arange(0,dimX)                
         y_inds = (a2*x_inds+pind)*a1        
         inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))        
-        print('inds_in shape: %s ', (inds_in[0].shape))
-    # Only paths 3 and 7. Very expensive, improve!            
+        #print('inds_in shape: %s ', (inds_in[0].shape))
+    # Only paths 3 and 7. (expensive)        
     else:
         y_inds = np.arange(0,dimY)                 
         x_inds = pind*np.ones(y_inds.shape[0]) # (Oiginally -1* at front of term, as well as a2=1 term,) 
         inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
-        print('inds_in shape: %s ', (inds_in[0].shape))
+        #print('inds_in shape: %s ', (inds_in[0].shape))
         
     x_inds = x_inds[inds_in[0]]
     y_inds = y_inds[inds_in[0]]
@@ -482,7 +485,7 @@ def costAgg(cIm, p1, p2, nP):
     dimY, dimX, dimD = cIm.shape
     dims = (dimY,dimX,dimD)
     dimMax = dimX + dimY
-    dMax = np.arange(0,dimMax)    # positive values only
+    dMax = np.arange(-dimX,dimMax)    # useful values debugged
     lIm = np.zeros((dimY, dimX, dimD, nP))
     
     # iterate over directions
@@ -493,21 +496,21 @@ def costAgg(cIm, p1, p2, nP):
         
         # iterate over dimensions
         for p in np.nditer(dMax):
-            print("--- p: %s ----" % (p))
+            #print("--- p: %s ----" % (p))
             indMat = diReMap(d, p, dimX, dimY, dimD)      
             inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
             slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
             
             # If path exists:            
             if np.all(slC.shape) != 0:
-                print('!!shape!!')
+                #print('!!shape!!')
                 # evaluate cost
                 lrS = pathCost(slC.T, p1, p2)
                 # assign to output
                 lIi[indMat]= lrS.flatten()
                 lIm[:,:,:,d] = lIi
-            else:
-                print('!!noshape!!')
+            #else:
+                #print('!!noshape!!')
                 
     print("--- %s seconds ---" % (time.time() - start))                     
     return lIm
