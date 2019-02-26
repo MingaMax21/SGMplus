@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Dec  5 14:04:23 2018
-
 "monocular depth assisted Semi-Global Matching (mdaSGM)"
-
 @author: max hoedel, Technische Universitaet Muenchen, 2018
 [credit: the base code of this program (no "mda") is based on the MATLAB code of Hirschmueller, 2008 (IEEE 30(2):328-341) ]
 """
@@ -67,7 +65,11 @@ def readGT(f):
             
     # Modified: reshape tuple back into 2D image
         gt = np.flipud(img.reshape(height,width))
-
+        #gt = gt[np.isfinite(gt)]
+    # replace inf with nan to allaw for max calculation
+        #gt[~np.isfinite(gt)] = np.nan
+        #gt = np.ma.masked_array(gt, ~np.isfinite(gt)).filled(np.nan)
+          
     return(gt)
     
 # Import L+R image pair, calib file, as well as metric depth maps
@@ -285,12 +287,12 @@ print("Ground truth depth range (left): %s [m] \n" % (gtdvarL))
 print("Ground truth depth range (right): %s [m] \n" % (gtdvarL)) 
 
 # Block size for sum aggregation
-bS = 7 
+bS = 5 
 bSf = np.float(bS)
 
 # Disparity range [0,...,+input]
-dR = dRange#   11           # Dynamic, change here for manual dRange
-dR = np.arange(1,dR)        # disparity 0 is ignored, non plausible value
+dR = 33#dRange #   11           # Dynamic, change here for manual dRange
+dR = np.arange(0,dR)
 dR = dR.astype(np.int16)
 R  = dR.shape[0]
 
@@ -334,22 +336,39 @@ def rawCost(imL, imR, bS, dR, R):
 
     # Border constraints
     for i in dR:   
-          
+        if i < 0:
+            l = i
+            r = 0
+        elif i > 0:
+            l = 0
+            r = i
+        else:
+            l = 0
+            r = 0
+        
         # Calculate borders        
-        bL = np.array([1, imL.shape[1]]) - np.array([0, i])
+        bL = np.array([1, imL.shape[1]]) - np.array([l, r])
         bR = bL + np.array([i,i])
            
         # Difference image within borders                
         dIm[:, bL[0] : bL[1]] = imR[:, bL[0]:bL[1]]  - imL[:, bR[0]:bR[1]]
         dIm = np.abs(dIm)
         
-        # Pre-convolution border handling
-        # Right-side only (rightward progression only, see v1 for bidirectional)
-        rt1 = dIm[:,bL[1]-1]
-        rt2 = dIm.shape[1]-bL[1]
-        rt3 = ([rt1]*rt2)
-        rt = rt3 * rt1            
-        dIm[:, bL[1]:bR[1]] = np.sqrt(rt.T)
+        # Pre-convolution border handling (VERY VERY BAD, TODO!)
+        # Left
+        if i <= 0:
+            lf1 = dIm[:,bL[0]]
+            lf2 = ([lf1]*bL[0])
+            lf = lf2*lf1
+            dIm[:,0:bL[0]]  = np.sqrt(lf.T)
+        
+        else :
+        # Right
+            rt1 = dIm[:,bL[1]-1]
+            rt2 = dIm.shape[1]-bL[1]
+            rt3 = ([rt1]*rt2)
+            rt = rt3 * rt1            
+            dIm[:, bL[1]:bR[1]] = np.sqrt(rt.T)
         
         # calculate normalized sums (averages) with ones convolution
         flt = np.ones([bS,bS])
@@ -415,13 +434,12 @@ def diReMap(d, pind, dimX, dimY, dimD):
         x_inds = np.arange(0,dimX)                
         y_inds = (a2*x_inds+pind)*a1        
         inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))        
-        print('inds_in shape: %s ', (inds_in[0].shape))
+    
     # Only paths 3 and 7. Very expensive, improve!            
     else:
         y_inds = np.arange(0,dimY)                 
         x_inds = pind*np.ones(y_inds.shape[0]) # (Oiginally -1* at front of term, as well as a2=1 term,) 
         inds_in = np.where(np.logical_and(x_inds>=0, x_inds < dimX))
-        print('inds_in shape: %s ', (inds_in[0].shape))
         
     x_inds = x_inds[inds_in[0]]
     y_inds = y_inds[inds_in[0]]
@@ -482,7 +500,7 @@ def costAgg(cIm, p1, p2, nP):
     dimY, dimX, dimD = cIm.shape
     dims = (dimY,dimX,dimD)
     dimMax = dimX + dimY
-    dMax = np.arange(0,dimMax)    # positive values only
+    dMax = np.arange(-dimMax,dimMax)    
     lIm = np.zeros((dimY, dimX, dimD, nP))
     
     # iterate over directions
@@ -491,23 +509,19 @@ def costAgg(cIm, p1, p2, nP):
         print("--- %s seconds ---" % (time.time() - start))
         print("--- step %s ----" % (d))
         
-        # iterate over dimensions
-        for p in np.nditer(dMax):
-            print("--- p: %s ----" % (p))
+        # iterate over paths in direction
+        for p in np.nditer(dMax):  
             indMat = diReMap(d, p, dimX, dimY, dimD)      
             inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
             slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
             
             # If path exists:            
             if np.all(slC.shape) != 0:
-                print('!!shape!!')
                 # evaluate cost
                 lrS = pathCost(slC.T, p1, p2)
                 # assign to output
                 lIi[indMat]= lrS.flatten()
                 lIm[:,:,:,d] = lIi
-            else:
-                print('!!noshape!!')
                 
     print("--- %s seconds ---" % (time.time() - start))                     
     return lIm
