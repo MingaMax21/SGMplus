@@ -194,6 +194,7 @@ vmin     = np.int(vmin[5:])              # tight bound on min disparity
 vmax     = np.int(vmax[5:])              # tight bound on max disparity
 #   --> Floating point disparity to depth: Z = baseline * focal length / (dispVal + doffs)
 
+#Calculate mono-depth metrics:
 # Scaling factors and resized dimensions
 width2 = imL.shape[1]
 width3 = dpL.shape[1]
@@ -210,7 +211,7 @@ imR = img_as_ubyte(imR)
 imL = imL.astype(np.int16)       
 imR = imR.astype(np.int16)
 
-# Extract important metrics from depth matrices:
+# Disparity range estimation:
 dminL = dpL.min()
 dmaxL = dpL.max()
 dminR = dpR.min()
@@ -221,8 +222,31 @@ dvarR = dmaxR - dminR
 # Calculate mean min distance in MM for a-priori max disparity
 meanminZ = 1000*(dminL+dminR)/2
 
-# maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
+# !!!TODO test plausibility of individual disparity estimations
+
+# Maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
 dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs)*scale2))
+
+# Calculate derivatives and look for jumps
+edL = feature.canny(dpL, sigma = 7)
+edR = feature.canny(dpR, sigma = 7)
+
+# Plot edge images
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("edL")
+axes.imshow(edL,cmap='gray')
+plt.show()
+
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("edR")
+axes.imshow(edR,cmap='gray')
+plt.show()
+
+# Determine direction from edge images
 
 # Debugging: extract equivalent metrics from GT, calculate depth map, compare for plausibility
 gtminL = gtL[np.isfinite(gtL)]
@@ -251,8 +275,6 @@ gtdvarL = gtdmaxL - gtdminL
 gtdvarR = gtdmaxR - gtdminR
 gtsvarL = gtvarL*scale
 gtsvarR = gtvarR*scale
-#mediandp = np.median(gtdMapL)
-#histdp = plt.hist([gtdMapL])
 
 print("Ground truth depth left:\n")
 fig,axes = plt.subplots(1,1)
@@ -285,7 +307,7 @@ print("Ground truth depth range (left): %s [m] \n" % (gtdvarL))
 print("Ground truth depth range (right): %s [m] \n" % (gtdvarL)) 
 
 # Block size for sum aggregation
-bS = 7 
+bS = 5 
 bSf = np.float(bS)
 
 # Disparity range [0,...,+input]
@@ -295,36 +317,16 @@ dR = dR.astype(np.int16)
 R  = dR.shape[0]
 
 # Penalty terms
-p1 = (0.5 * bSf* bSf)
-p2 = (2 * bSf* bSf)
+p1 = (0.5 * bSf * bSf)
+p2 = (2.0 * bSf * bSf)
 
-# Number of paths (SUPPORTS 1-8)
+# Number of paths (SUPPORTS 1-8) TODO: KILL NP PARAM
 nP = 8
-
-# !!!TODO: adequately preprocess images and optimize filter
-
-# Calculate derivatives and look for jumps (ADAPTIVE SIGMA!)
-edL = feature.canny(dpL, sigma = 7)
-edR = feature.canny(dpR, sigma = 7)
-
-# Plot edge images
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("edL")
-axes.imshow(edL,cmap='gray')
-plt.show()
-
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("edR")
-axes.imshow(edR,cmap='gray')
-plt.show()
 
 # TODO create final edge map / list of "do-not-pass" points
 
-def rawCost(imL, imR, bS, dR, R):    
+def rawCost(imL, imR, bS, dR, R): 
+    
     # initialize cost image (X x Y x disp_range)
     cIm =  np.zeros((imL.shape[0],imL.shape[1], R))
     cIm = cIm.astype(np.float)
@@ -332,7 +334,6 @@ def rawCost(imL, imR, bS, dR, R):
     dIm = np.zeros((imL.shape[0], imL.shape[1]))
     dIm = dIm.astype(np.int16)     
 
-    # Border constraints
     for i in dR:   
           
         # Calculate borders        
@@ -344,7 +345,6 @@ def rawCost(imL, imR, bS, dR, R):
         dIm = np.abs(dIm)
         
         # Pre-convolution border handling
-        # Right-side only (rightward progression only, see v1 for bidirectional)
         rt1 = dIm[:,bL[1]-1]
         rt2 = dIm.shape[1]-bL[1]
         rt3 = ([rt1]*rt2)
@@ -357,68 +357,18 @@ def rawCost(imL, imR, bS, dR, R):
                 
     return cIm
     
-cIm = rawCost(imL, imR, bS, dR, R)
+def diReMap(d, pind, dimX, dimY, dimD, par):
 
-def diReMap(d, pind, dimX, dimY, dimD):
-# parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
-
-    #!!!TODO Debug mode for testing individual paths
-    
-    
-# Optimized boolean: Initialize all params,, rewrite as little as possible
-# Better idea? Use library to avoid excessive logicals?
-    a1 = 1
-    a2 = 0
-    fo = 0
-    
-    # Paths ordered in X,Y system with origin in top left.
-    # Path 1 -> d=0, path 2 -> d=1 etc.
-    if d == 0: # Horiz to right
-        a1 = 1
-        #a2 = 0 
-        #fo = 0
-
-    elif d == 1: # Down to right
-        #a1 = 1
-        a2 = 1
-        #fo = 0
-        
-    elif d == 2: # Vert down
-        a1 = 0
-        #a2 = 1
-        #fo = 0
-        
-    elif d == 3: # Down to left
-        a1 = 1
-        a2 = -1
-        fo = 1
-        
-    elif d == 4: # Horiz left
-        #a1 = 1
-        a2 = 0
-        #fo = 1
-        
-    elif d == 5: # Up to left
-        #a1 = 1
-        a2 = 1
-        #fo = 1
-        
-    elif d == 6: # Vert up
-        a1 = 0
-        #a2 = 1
-        #fo = 1
-        
-    else:   # Up to right
-        a1 = 1
-        a2 = -1
-        fo = 0
-
+# NEW: Parameters are created outside this function to reduce excessive logicals
     # Valid for all paths except 3 and 7
+    a1,a2,fo = par
+    
     if a1 != 0:
         x_inds = np.arange(0,dimX)                
         y_inds = (a2*x_inds+pind)*a1        
         inds_in = np.where(np.logical_and(y_inds>=0, y_inds < dimY))        
         #print('inds_in shape: %s ', (inds_in[0].shape))
+    
     # Only paths 3 and 7. (expensive)        
     else:
         y_inds = np.arange(0,dimY)                 
@@ -460,10 +410,10 @@ def pathCost(slC, p1, p2):
     
     # constant grades matrix
     xx = np.arange(0,nL)
-    XX,YY = np.meshgrid(xx,xx,sparse=False,indexing='ij')
+    XX,YY = np.meshgrid(xx,xx,sparse=True,indexing='ij')
     cGrad = np.zeros((nL,nL))
     
-    # write values into cGrad matrix 
+    # write values into cGrad matrix (penalty terms for homogeneity)
     cGrad[np.abs(XX-YY) == 1] = p1
     cGrad[np.abs(XX-YY) >  1] = p2
     
@@ -485,21 +435,49 @@ def costAgg(cIm, p1, p2, nP):
     dimY, dimX, dimD = cIm.shape
     dims = (dimY,dimX,dimD)
     dimMax = dimX + dimY
-    dMax = np.arange(-dimX,dimMax)    # useful values debugged
+    #dMax = np.arange(-dimX,dimMax)    # replaced with case switch below
     lIm = np.zeros((dimY, dimX, dimD, nP))
+    
+    # Parameters for paths:
+    pars = np.array([[1,-1,0], [1,0,0], [1,1,0], [0,1,0], [1,-1,1], [1,0,1], [1,1,1], [0,1,1]])
+    #  8 Paths:       Up R      Hz R     Dn R     Vt Dn     Dn L      Hz L     Up L    Vt Up     
+    # Parametrize line a1*y = a2*x +b, different parameters a1, a2, b for each direction
+    # 'fo' flip-order term for left-looking paths
+    
+    # DEBUG: Additional path sets
+    #pars = np.array([[1,1,1], [1,0,0], [1,-1,0], [1,-1,1], [1,0,1], [1,1,1], [0,1,1], [1,-1,0]])
     
     # iterate over directions
     for d in range(nP):
+
+        par = pars[d][:]
         lIi = np.zeros(cIm.shape)
         print("--- %s seconds ---" % (time.time() - start))
         print("--- step %s ----" % (d))
         
-        # iterate over dimensions
-        for p in np.nditer(dMax):
-            #print("--- p: %s ----" % (p))
-            indMat = diReMap(d, p, dimX, dimY, dimD)      
+        # iterate over dimensions, case differentiation by path
+        if d == 0:
+            indR = np.arange(0,dimMax)
+        elif d == 1:
+            indR = np.arange(0,dimY)
+        elif d == 2:
+            indR = np.arange(-dimX,dimY)
+        elif d == 3:
+            indR = np.arange(0,dimX)
+        elif d == 4:
+            indR = np.arange(0,dimMax)
+        elif d == 5:
+            indR = np.arange(0,dimY)
+        elif d == 6:
+            indR = np.arange(-dimX,dimY)
+        else:
+            indR = np.arange(0,dimX)
+            
+        for p in np.nditer(indR):
+            #print("--- p: %s ----" % (p))            
+            indMat = diReMap(d, p, dimX, dimY, dimD, par)      
             inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
-            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD],order='F')
+            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD], order='F')
             
             # If path exists:            
             if np.all(slC.shape) != 0:
@@ -516,12 +494,17 @@ def costAgg(cIm, p1, p2, nP):
     return lIm
 
 print("Calculating disparities in estimated range of %s pixels" % (dRange))
+
+# Calculate raw cost
+cIm = rawCost(imL, imR, bS, dR, R)
+
+# Path search and cost aggregation
 lIm = costAgg(cIm, p1, p2, nP)
 
 # Sum across paths
 S = np.sum(lIm,axis=3)
 
-# Final disparity map:
+# Final disparity map as disparity value at location of minimum cost across all paths:
 dMap = np.argmin(S,axis=2)+dR[0]
 
 # Remove zero values
