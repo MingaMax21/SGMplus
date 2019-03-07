@@ -15,14 +15,18 @@ import re
 import imageio
 import scipy.io as spio
 from struct import unpack
+#from scipy.misc import imsave
 from skimage import color
 from skimage import io
 from skimage import img_as_ubyte
+#from skimage import img_as_float32
 from skimage import feature
 from scipy import signal
-from skimage import transform
+#from skimage import transform
 import time
-import multiprocessing
+#import multiprocessing
+#import threading
+#from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 # Start timer
 start = time.time()
@@ -41,7 +45,7 @@ def readGT(f):
         elif "Pf" in type:
             channels=1
         else:
-            print("ERROR: Not a valid PFM file", file=sys.stderr)
+            print("ERROR: Not a valid PFM file",file=sys.stderr)
             sys.exit(1)
     # Line 2: width height
         line=f.readline().decode('latin-1')
@@ -313,13 +317,14 @@ bSf = np.float(bS)
 dR = dRange#   11           # Dynamic, change here for manual dRange
 dR = np.arange(1,dR)        # disparity 0 is ignored, non plausible value
 dR = dR.astype(np.int16)
+#R  = dR.shape[0]
 
 # Penalty terms
 p1 = (0.5 * bSf * bSf)
 p2 = (2.0 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8) TODO: KILL NP PARAM
-nP = 8
+nP = 4
 
 # TODO create final edge map / list of "do-not-pass" points
 
@@ -356,6 +361,7 @@ def rawCost(imL, imR, bS, dR):
     return cIm
     
 def diReMap(pind, dimX, dimY, dimD, par):
+
 # NEW: Parameters are created outside this function to reduce excessive logicals
     # Valid for all paths except 3 and 7
     a1,a2,fo = par
@@ -418,54 +424,14 @@ def pathCost(slC, p1, p2):
         
     return(lrS)
 
-def costProc(d, pars, cIm, return_dict):
-    
+def costAgg(cIm, p1, p2, nP):
+# input: path slice of C (subC) , penalty terms
     dimY, dimX, dimD = cIm.shape
     dims = (dimY,dimX,dimD)
     dimMax = dimX + dimY
-    par = pars[d][:]
-    lIi = np.zeros(cIm.shape)
-    dimY,dimX,dimD = dims
-    print("Path search process started: -%s-" % (d))
-# case differentiation by path, each process is responsible for one direction
-# Originally: static indR vector as np.arange(-dimX,dimMax) and logical test of slice length !=0 before evaluation
-    if d == 0:
-        indR = np.arange(0,dimMax-1)
-    elif d == 1:
-        indR = np.arange(0,dimY)
-    elif d == 2:
-        indR = np.arange(-dimX+1,dimY)
-    elif d == 3:
-        indR = np.arange(0,dimX)
-    elif d == 4:
-        indR = np.arange(0,dimMax-1)
-    elif d == 5:
-        indR = np.arange(0,dimY)
-    elif d == 6:
-        indR = np.arange(-dimX+1,dimY)
-    else:
-        indR = np.arange(0,dimX)
-            
-    for p in np.nditer(indR):
-                          
-        indMat = diReMap(p, dimX, dimY, dimD, par)      
-        inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
-        slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD], order='F')            
-        # If path exists: (now guaranteed through optimized indices)  old: if np.all(slC.shape) != 0: print('!!shape!!')
-        # evaluate cost
-        lrS = pathCost(slC.T, p1, p2)
-        # assign to output
-        lIi[indMat]= lrS.flatten()
-       
-    return_dict[d] = lIi     
-      
-def costAgg(cIm, p1, p2, nP):
-# costAgg is a multi-process function, starting an instance of costProc for each path
-    dimY, dimX, dimD = cIm.shape
+    #dMax = np.arange(-dimX,dimMax)    # replaced with case switch below
     lIm = np.zeros((dimY, dimX, dimD, nP))
-    lIm2 = lIm
-# input: path slice of C (subC) , penalty terms
-
+    
     # Parameters for paths:
     pars = np.array([[1,-1,0], [1,0,0], [1,1,0], [0,1,0], [1,-1,1], [1,0,1], [1,1,1], [0,1,1]])
     #  8 Paths:       Up R      Hz R     Dn R     Vt Dn     Dn L      Hz L     Up L    Vt Up     
@@ -474,28 +440,49 @@ def costAgg(cIm, p1, p2, nP):
     
     # DEBUG: Additional path sets
     #pars = np.array([[1,1,1], [1,0,0], [1,-1,0], [1,-1,1], [1,0,1], [1,1,1], [0,1,1], [1,-1,0]])
-        
-    # Multiprocessing:
-    if __name__ == '__main__':
-        processes = []
-        manager = multiprocessing.Manager()
-        return_dict = manager.dict()
     
-        for d in range(nP):        
-            p = multiprocessing.Process(target = costProc, args = (d, pars, cIm, return_dict))
-            processes.append(p)
-            p.start()
+    # iterate over directions
+    for d in range(nP):
 
-        for p in processes:
-            p.join()
-            print("Process %s joined" % (p))
-        lIm = return_dict.values()        
+        par = pars[d][:]
+        lIi = np.zeros(cIm.shape)
+        print("--- %s seconds ---" % (time.time() - start))
+        print("--- step %s ----" % (d))
         
-        # workaround to get correct dim
-        for d2 in range(len(lIm)):            
-            lIm2[:,:,:,d2] = lIm[d2]
-   
-    return lIm2
+        # case differentiation by path
+        # Originally: static indR vector as np.arange(-dimX,dimMax) and logical test of slice length !=0 before evaluation
+        if d == 0:
+            indR = np.arange(0,dimMax-1)
+        elif d == 1:
+            indR = np.arange(0,dimY)
+        elif d == 2:
+            indR = np.arange(-dimX+1,dimY)
+        elif d == 3:
+            indR = np.arange(0,dimX)
+        elif d == 4:
+            indR = np.arange(0,dimMax-1)
+        elif d == 5:
+            indR = np.arange(0,dimY)
+        elif d == 6:
+            indR = np.arange(-dimX+1,dimY)
+        else:
+            indR = np.arange(0,dimX)
+            
+        for p in np.nditer(indR):
+            #print("--- p: %s ----" % (p))            
+            indMat = diReMap(p, dimX, dimY, dimD, par)      
+            inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
+            slC = np.reshape(cIm[indMat], [int(inds.shape[0]/dimD) , dimD], order='F')            
+        # If path exists: (now guaranteed through optimized indices)  old: if np.all(slC.shape) != 0: print('!!shape!!')
+            # evaluate cost
+            lrS = pathCost(slC.T, p1, p2)
+            # assign to output
+            lIi[indMat]= lrS.flatten()
+        lIm[:,:,:,d] = lIi
+        #else: print('!!noshape!! %s' % (d)) print(p) (for debugging useful indices)
+                
+    print("--- %s seconds ---" % (time.time() - start))                     
+    return lIm
 
 print("Calculating disparities in estimated range of %s pixels" % (dRange))
 
@@ -505,15 +492,17 @@ cIm = rawCost(imL, imR, bS, dR)
 # Path search and cost aggregation
 lIm = costAgg(cIm, p1, p2, nP)
 
+lIm2 = lIm[:,:,:,0]
+lIm2 = lIm2.reshape(228,304,25,1)
 # Sum across paths
-S = np.sum(lIm, axis=3)
+S = np.sum(lIm,axis=3)
 
 # Final disparity map as disparity value at location of minimum cost across all paths:
-dMap = np.argmin(S, axis=2) #+ dR[0]
+dMap = np.argmin(S,axis=2)+dR[0]
 
 # Remove zero values
 dMap = dMap[np.isfinite(dMap)]
-dMap = dMap.reshape(height2, width2)
+dMap = dMap.reshape(height2,width2)
 
 # Depth map from disparity map
 dpMap = np.zeros((height2, width2))
@@ -537,5 +526,5 @@ plt.show()
 
 print("Time elapsed: --- %s seconds ---" % (time.time() - start))
 
-imageio.imsave('dMap.png', dMap.astype(np.uint8))
-imageio.imsave('dpMap.png', dpMap.astype(np.uint8))
+imageio.imsave('dMap.png',dMap.astype(np.uint8))
+imageio.imsave('dpMap.png',dpMap.astype(np.uint8))
