@@ -206,6 +206,7 @@ scale = width2/width # Scale for resized imgs
 scale2 = width3/width # Scale for monodepth map
 doffs2 = scale*doffs
 focus2 = scale*focus
+ndisp2 = np.round(ndisp*scale)
 
 # Workaround to make integer subtraction on images possible
 # Resized images from network are [304x228]    
@@ -225,10 +226,14 @@ dvarR = dmaxR - dminR
 # Calculate mean min distance in MM for a-priori max disparity
 meanminZ = 1000*(dminL+dminR)/2
 
-# !!!TODO test plausibility of individual disparity estimations
+# Calculate mean max distance in MM for a-priori min disparity
+meanmaxZ = 1000*(dmaxL+dmaxR)/2
+
+# Minimum disparity from minimum distance
+dMin = np.int(np.round(((baseline*focus)/meanmaxZ - doffs2)*scale2))
 
 # Maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
-dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs)*scale2))
+dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs2)*scale2))
 
 # Calculate derivatives and look for jumps
 edL = feature.canny(dpL, sigma = 7)
@@ -313,9 +318,10 @@ print("Ground truth depth range (right): %s [m] \n" % (gtdvarL))
 bS = 5 
 bSf = np.float(bS)
 
+dMin2 = int(np.round(dMin-(dMin/2)))
 # Disparity range [0,...,+input]
 dR = dRange#   11           # Dynamic, change here for manual dRange
-dR = np.arange(1,dR)        # disparity 0 is ignored, non plausible value
+dR = np.arange(dMin2,dRange)        # disparity 0 is ignored, non plausible value
 dR = dR.astype(np.int16)
 #R  = dR.shape[0]
 
@@ -324,7 +330,7 @@ p1 = (0.5 * bSf * bSf)
 p2 = (2.0 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8) TODO: KILL NP PARAM
-nP = 4
+nP = 3
 
 # TODO create final edge map / list of "do-not-pass" points
 
@@ -429,7 +435,7 @@ def costAgg(cIm, p1, p2, nP):
     dimY, dimX, dimD = cIm.shape
     dims = (dimY,dimX,dimD)
     dimMax = dimX + dimY
-    #dMax = np.arange(-dimX,dimMax)    # replaced with case switch below
+    nops2 = 0
     lIm = np.zeros((dimY, dimX, dimD, nP))
     
     # Parameters for paths:
@@ -443,7 +449,8 @@ def costAgg(cIm, p1, p2, nP):
     
     # iterate over directions
     for d in range(nP):
-
+        nops = 0
+        
         par = pars[d][:]
         lIi = np.zeros(cIm.shape)
         print("--- %s seconds ---" % (time.time() - start))
@@ -469,6 +476,7 @@ def costAgg(cIm, p1, p2, nP):
             indR = np.arange(0,dimX)
             
         for p in np.nditer(indR):
+            
             #print("--- p: %s ----" % (p))            
             indMat = diReMap(p, dimX, dimY, dimD, par)      
             inds = np.ravel_multi_index(indMat,dims,order='F') # Column-major indexing (Fortran style)           
@@ -478,7 +486,16 @@ def costAgg(cIm, p1, p2, nP):
             lrS = pathCost(slC.T, p1, p2)
             # assign to output
             lIi[indMat]= lrS.flatten()
+            
+            # Evaluation: number of operations
+            nop = slC.shape[0]*slC.shape[1]   # [len x nDisp]            
+            nops = nops + nop
+            #print(nops)
+        
         lIm[:,:,:,d] = lIi
+        nops2 = nops2 + nops  
+    print(nops2)
+            
         #else: print('!!noshape!! %s' % (d)) print(p) (for debugging useful indices)
                 
     print("--- %s seconds ---" % (time.time() - start))                     
@@ -492,8 +509,8 @@ cIm = rawCost(imL, imR, bS, dR)
 # Path search and cost aggregation
 lIm = costAgg(cIm, p1, p2, nP)
 
-lIm2 = lIm[:,:,:,0]
-lIm2 = lIm2.reshape(228,304,25,1)
+#lIm2 = lIm[:,:,:,0]
+#lIm2 = lIm2.reshape(228,304,25,1)
 # Sum across paths
 S = np.sum(lIm,axis=3)
 

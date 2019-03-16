@@ -36,7 +36,6 @@ print('mdaSGM initialized\n')
 imSet = np.int(input('Please enter index of image set to be processed:\n[1]:Motorcycle\n[2]:Piano\n[3]:Recycle\n\n:'))
 #imSet = 3 #(debug)
 
-# 
 # Define function for reading GT disparities
 def readGT(f):    
     with open(f,"rb") as f:
@@ -106,9 +105,7 @@ elif imSet == 3:
     dpR = dpR["pred_depths"]
     gtL = readGT("./data/Recycle-perfect/disp0.pfm")
     gtR = readGT("./data/Recycle-perfect/disp1.pfm")
-    cal = open('./data/Recycle-perfect/calib.txt', 'r')
-    
-    
+    cal = open('./data/Recycle-perfect/calib.txt', 'r')    
     
 #elif imSet == 4:
     # imL = color.rgb2gray(io.imread("./data/Mask-perfect/im0_resized.png"))
@@ -354,7 +351,7 @@ p1 = (0.5 * bSf * bSf)
 p2 = (2 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 3
+nP = 2
 
 def rawCost(imL, imR, bS, dR): 
     
@@ -555,6 +552,8 @@ def save_pfm(file, image, scale = 1): # source: [https://gist.github.com/chpatri
 
   file.write('%f\n' % scale)
   image.tofile(file)
+ 
+
 
 # Calculate raw cost
 cIm = rawCost(imL, imR, bS, dR)
@@ -568,15 +567,14 @@ S = np.sum(lIm, axis=3)
 # Final disparity map as disparity value at location of minimum cost across all paths:
 dMap = np.argmin(S, axis=2) + dD
 
-#Convert final disparities to .PFT for eval 
-dMap2 = np.flipud(dMap)
-dMap2 = dMap2.astype(np.float32)
+#!!!TODO convert final disparities to .pft for eval (? remove 0 before or after)
+dMap = dMap.astype(np.float32)
 filename = "dMap.pfm"
 file = open(filename,"w")
-dMap3 = save_pfm(file,dMap2, scale = 1)
+dMap2 = save_pfm(file,dMap, scale = 1)
 file.close()
 
-# Remove zero values for conversion to depth
+# Remove zero values
 dMap = dMap[np.isfinite(dMap)]
 dMap = dMap.reshape(height2, width2)
 
