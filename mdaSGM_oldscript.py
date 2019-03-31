@@ -106,83 +106,61 @@ elif imSet == 3:
     dpR = dpR["pred_depths"]
     gtL = readGT("./data/Recycle-perfect/disp0.pfm")
     gtR = readGT("./data/Recycle-perfect/disp1.pfm")
-    cal = open('./data/Recycle-perfect/calib.txt', 'r')
-    
-    
-    
-#elif imSet == 4:
-    # imL = color.rgb2gray(io.imread("./data/Mask-perfect/im0_resized.png"))
-    # imR = color.rgb2gray(io.imread("./data/Mask-perfect/im1_resized.png"))
-    # dpL = spio.loadmat("./data/Mask-perfect/im0_results.mat")
-    # dpL = dpL["pred_depths"]
-    # dpR = spio.loadmat("./data/Mask-perfect/im1_results.mat")
-    # dpR = dpR["pred_depths"]
-    
-#elif imSet == 5:
-    # imL = color.rgb2gray(io.imread("./data/Umbrella-perfect/im0_resized.png"))
-    # imR = color.rgb2gray(io.imread("./data/Umbrella-perfect/im1_resized.png"))
-    # dpL = io.imread("./data/Umbrella-perfect/im0_depth.png")
-    # dpR = io.imread("./data/Umbrella-perfect/im1_depth.png")
-    
-#elif imSet == 6: 
-    # imL = color.rgb2gray(io.imread("./data/mtlb_ex1/imL.png"))
-    # imR = color.rgb2gray(io.imread("./data/mtlb_ex1/imR.png"))
-    # dpL = io.imread("./data/mtlb_ex1/imL.png")
-    # dpR = io.imread("./data/mtlb_ex1/imL.png")
-    
+    cal = open('./data/Recycle-perfect/calib.txt', 'r')    
+        
 else:    
     sys.exit('Invalid entry! Program terminated!')
 
-# Plot imput images
-print("Input image left:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("imL")
-axes.imshow(imL,cmap='gray')
-plt.show()
+# # Plot imput images
+# print("Input image left:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("imL")
+# axes.imshow(imL,cmap='gray')
+# plt.show()
 
-print("Input image right:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("imR")
-axes.imshow(imR,cmap='gray')
-plt.show()
+# print("Input image right:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("imR")
+# axes.imshow(imR,cmap='gray')
+# plt.show()
 
-# Plot raw mono-depth-images:
-print("Mono-depth image left:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("dpL")
-axes.imshow(dpL,cmap='gray')
-plt.show()
+# # Plot raw mono-depth-images:
+# print("Mono-depth image left:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("dpL")
+# axes.imshow(dpL,cmap='gray')
+# plt.show()
 
-print("Mono-depth image right:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("dpR")
-axes.imshow(dpR,cmap='gray')
-plt.show()
+# print("Mono-depth image right:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("dpR")
+# axes.imshow(dpR,cmap='gray')
+# plt.show()
 
-# Plot ground truth disparities
-print("Ground truth disp left:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("gtL")
-axes.imshow(gtL,cmap='gray')
-plt.show()
+# # Plot ground truth disparities
+# print("Ground truth disp left:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("gtL")
+# axes.imshow(gtL,cmap='gray')
+# plt.show()
 
-print("Ground truth disp left:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("gtR")
-axes.imshow(gtR,cmap='gray')
-plt.show()
+# print("Ground truth disp left:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("gtR")
+# axes.imshow(gtR,cmap='gray')
+# plt.show()
 
 print("Calculating ground truth depth maps...please wait")
 
@@ -200,6 +178,7 @@ vmin     = np.int(vmin[5:])              # tight bound on min disparity
 vmax     = np.int(vmax[5:])              # tight bound on max disparity
 #   --> Floating point disparity to depth: Z = baseline * focal length / (dispVal + doffs)
 
+print(focus)
 #Calculate mono-depth metrics:
 # Scaling factors and resized dimensions
 width2  = imL.shape[1]
@@ -233,11 +212,11 @@ meanminZ = 1000*(dminL+dminR)/2
 # Calculate mean max distance in MM for a-priori min disparity
 meanmaxZ = 1000*(dmaxL+dmaxR)/2
 
-# Minimum disparity from minimum distance
-dMin = np.int(np.round(((baseline*focus)/meanmaxZ - doffs2)*scale2))
+# Minimum disparity from maximum distance
+dMin = np.int(np.round(((baseline*focus)/meanmaxZ - doffs2) * scale2))
 
 # Maximum disparity from minimum distance: disparity = (baseline*focal length)/depth - doffs
-dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs2)*scale2))
+dRange = np.int(np.round(((baseline*focus)/meanminZ - doffs2) * scale2))
 
 # Calculate derivatives and look for jumps
 edL = feature.canny(dpL, sigma = 7)
@@ -298,22 +277,22 @@ gtdvarR = gtdmaxR - gtdminR
 gtsvarL = gtvarL*scale
 gtsvarR = gtvarR*scale
 
-print("Ground truth depth left:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("gtdMapL")
-axes.imshow(gtdMapL,cmap='gray')
-#plt.colorbar('gray')
-plt.show()
+# print("Ground truth depth left:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("gtdMapL")
+# axes.imshow(gtdMapL,cmap='gray')
+# #plt.colorbar('gray')
+# plt.show()
 
-print("Ground truth depth right:\n")
-fig,axes = plt.subplots(1,1)
-axes.set_xlabel("X")
-axes.set_ylabel("Y")
-axes.set_title("gtdMapL")
-axes.imshow(gtdMapR,cmap='gray')
-plt.show()        
+# print("Ground truth depth right:\n")
+# fig,axes = plt.subplots(1,1)
+# axes.set_xlabel("X")
+# axes.set_ylabel("Y")
+# axes.set_title("gtdMapL")
+# axes.imshow(gtdMapR,cmap='gray')
+# plt.show()        
 
 # Outputs before SGM calculation:
 print("Size of original input image: %s x %s \n" % (width, height))
@@ -565,8 +544,16 @@ lIm = costAgg(cIm, p1, p2, nP)
 # Sum across paths
 S = np.sum(lIm, axis=3)
 
-# Final disparity map as disparity value at location of minimum cost across all paths:
+# Initial disparity map as disparity value at location of minimum cost across all paths:
 dMap = np.argmin(S, axis=2) + dD
+
+print("SGM Disparity map inital:\n")
+fig,axes = plt.subplots(1,1)
+axes.set_xlabel("X")
+axes.set_ylabel("Y")
+axes.set_title("SGM Disparity Image Initial")
+axes.imshow(dMap,cmap='gray')
+plt.show()
 
 #Convert final disparities to .PFT for eval 
 dMap2 = np.flipud(dMap)
@@ -584,11 +571,11 @@ dMap = dMap.reshape(height2, width2)
 dpMap = np.zeros((height2, width2))
 dpMap = ((baseline*focus2)/(dMap + doffs2)) / 1000
 
-print("SGM Disparity map:\n")
+print("SGM Disparity map final:\n")
 fig,axes = plt.subplots(1,1)
 axes.set_xlabel("X")
 axes.set_ylabel("Y")
-axes.set_title("SGM Disparity Image")
+axes.set_title("SGM Disparity Image Final")
 axes.imshow(dMap,cmap='gray')
 plt.show()
 
