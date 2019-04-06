@@ -139,7 +139,7 @@ def dispRangeHist(mdL, mdR, doffs, baseline, focus):
     dR = dR.astype(np.int16)
     
     # If dMin starting above 1: offset must be added back to dispImg 
-    dD = dR[0] - 1
+    dD = dR[0] #- 1 (-1 theoretically correct, yet detrimental on quality)
     
     # # Plots
     # fig,axes = plt.subplots(1,1)

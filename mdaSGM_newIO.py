@@ -40,7 +40,7 @@ p1 = (0.5 * bSf * bSf)
 p2 = (2 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 3
+nP = 8
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -91,11 +91,9 @@ for p in imSet:
     #print(vmax)
      
     #DEBUG, CHEATING CALIB DISP RANGE-------------------
-    dR = np.arange(dMin, dMax)
+    #dR = np.arange(vmin, vmax)
     
-    # If dMin starting above 1: offset must be added back to dispImg 
-    dD = dR[0] - 1
-    
+
     # ----------------------#
     
     # Calculate raw cost
@@ -121,7 +119,7 @@ for p in imSet:
     #Convert final disparities to .PFM for eval 
     dMap2 = np.flipud(dMap)
     dMap2 = dMap2.astype(np.float32)
-    filename = "dMap.pfm"
+    filename = os.path.join("./data", p, "disp0mda.pfm")
     file = open(filename,"w")
     dMap3 = mda.save_pfm(file,dMap2, scale = 1)
     file.close()
