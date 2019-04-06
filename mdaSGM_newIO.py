@@ -84,17 +84,13 @@ for p in imSet:
     # Get disparity range dR from mono-depth metrics 
     #dR, dD = mda.dispRangeOld(mdL, mdR, doffs, baseline, focus) #   Old: Activate for pure pixel disparity borders (bad)
     dR, dD = mda.dispRangeHist(mdL, mdR, doffs, baseline, focus)  #   New: Histogram based disparity borders (better)
+         
+    # ------------------------------ #
     
-    #print(dR.min())
-    #print(dR.max())
-    #print(vmin)
-    #print(vmax)
-     
-    #DEBUG, CHEATING CALIB DISP RANGE-------------------
+    #DEBUG: CHEAT DISP RANGE From INFO 
     #dR = np.arange(vmin, vmax)
     
-
-    # ----------------------#
+    # ------------------------------ #
     
     # Calculate raw cost
     cIm = mda.rawCost(imL, imR, bS, dR)
@@ -142,8 +138,8 @@ for p in imSet:
     
     print("Time elapsed: --- %s seconds ---" % (time.time() - start))
 
-    imageio.imsave('dMap.png', dMap.astype(np.uint8))
-    imageio.imsave('dpMap.png', dpMap.astype(np.uint8))
+    imageio.imsave(os.path.join("./data", p, "dMap.png"), dMap.astype(np.uint8))
+    imageio.imsave(os.path.join("./data", p, "dpMap.png"), dpMap.astype(np.uint8))
 
 
 
