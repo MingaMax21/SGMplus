@@ -17,13 +17,13 @@ from skimage import color
 from skimage import io
 from skimage import img_as_ubyte
 import os
-
+import scipy.io as spio
 # Start timer
 start = time.time()
 print('mdaSGM initialized\n')
 
-# Debug
-imSet = ['Motorcycle']
+#Debug
+imSet = ['Adirondack']
 
 # Full
 # imSet = ['Adirondack','ArtL','Jadeplant','Motorcycle','MotorcycleE','Piano','PianoL','Pipes','Playroom','Playtable','Recycle','Shelves','Teddy','Vintage']
@@ -40,15 +40,25 @@ p1 = (0.5 * bSf * bSf)
 p2 = (2 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 8
+nP = 3
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
 # Run algorithm for all images
-for p in imSet:    
-
+for p in imSet:  
+    
+    print(p)
     # Ground truth (comparison only)
-    #gtL = mda.readGT(os.path.join("./data/", p, "disp0GT.pfm"))
+    gtL = mda.readGT(os.path.join("./data/", p, "disp0GT.pfm"))
+    
+    # Ground truth histogram
+    gtL[gtL >= 1E308] = 0
+    gtLhist, gtLbins = np.histogram(gtL, bins=256)
+    gtLbins = gtLbins[0:gtLbins.size-1]
+    
+    # Save and remove gt mismatches from histogram
+    gtFails = gtLhist[0]
+    gtLhist[0] = 0
     
     # Read input images
     imL = color.rgb2gray(io.imread(os.path.join("./data", p, "im0.png")))
@@ -59,20 +69,29 @@ for p in imSet:
     imR = imR.astype(np.int16)
     
     # Read mono-depth images
-    #mdL = spio.loadmat(os.path.join("./data/", p, "im0/predict_depth.mat"))
-    #mdL = mdL["data_obj"]
-    #mdR = spio.loadmat(os.path.join("./data/", p, "im1/predict_depth.mat"))
-    #mdR = mdR["data_obj"]
+    mdL = spio.loadmat(os.path.join("./data/", p, "im0/predict_depth.mat"))
+    mdL = mdL["data_obj"]
+    mdR = spio.loadmat(os.path.join("./data/", p, "im1/predict_depth.mat"))
+    mdR = mdR["data_obj"]    
     
     # Calibration metrics for depth-disparity conversion
     cal = open(os.path.join("./data", p, "calib.txt"))
     focus, doffs, baseline, width, height, ndisp, vmin, vmax, dyavg, dymax = mda.readCal(cal) #cal.readlines()
-
-    # Get disparity range dR from mono-depth metrics !!!pass doffs and scale!
-    #dR, dD = mda.dispRange(mdL, mdR, doffs, baseline, focus)    
+    #print(doffs)
+   # print(baseline)
+    #print(focus)
     
+    # Get disparity range dR from mono-depth metrics 
+    #dR, dD = mda.dispRangeOld(mdL, mdR, doffs, baseline, focus) #   Old: Activate for pure pixel disparity borders (bad)
+    dR, dD = mda.dispRangeHist(mdL, mdR, doffs, baseline, focus)  #   New: Histogram based disparity borders (better)
+    
+    #print(dR.min())
+    #print(dR.max())
+    #print(vmin)
+    #print(vmax)
+     
     #DEBUG, CHEATING CALIB DISP RANGE-------------------
-    dR = np.arange(vmin, vmax)
+    dR = np.arange(dMin, dMax)
     
     # If dMin starting above 1: offset must be added back to dispImg 
     dD = dR[0] - 1

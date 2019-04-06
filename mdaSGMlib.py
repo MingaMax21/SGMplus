@@ -64,16 +64,21 @@ def readGT(f):
 
     return(gt)
 
-# Disparity range estimation from mono images
-def dispRange(mdL, mdR, doffs, baseline, focus):
+# Old pixel-based disparity range estimation from mono images
+def dispRangeOld(mdL, mdR, doffs, baseline, focus):
+        
+    #mdL = signal.medfilt(mdL, kernel_size=9) # Old
+    #mdR = signal.medfilt(mdR, kernel_size=9)
+    
+    mdL = mdL[np.nonzero(mdL)]
+    mdR = mdR[np.nonzero(mdR)]
+    
     # Min and max from monodepth images
     dminL = mdL.min()
     dmaxL = mdL.max()
     dminR = mdR.min()
     dmaxR = mdR.max()
-    #dvarL = dmaxL - dminL
-    #dvarR = dmaxR - dminR
-    
+
     # Calculate mean min distance in MM for a-priori max disparity
     meanminZ = 1000*(dminL+dminR)/2
 
@@ -85,19 +90,75 @@ def dispRange(mdL, mdR, doffs, baseline, focus):
 
     # Maximum disparity from minimum distance: disparity = (baseline*focal length)
     dMax = np.int(np.round((baseline*focus)/meanminZ - doffs))
-    
+
     # Rounded and conservatively underestimated dMin
-    #dMin2 = int(np.round(dMin-(dMin/2)))
 
     # Disparity range NOTE: For calculation 
-
     dR = np.arange(dMin, dMax)        # disparity 0 is ignored, non plausible value (inf distance))
     dR = dR.astype(np.int16)
-    dR = np.arange(20,60)
     
     # If dMin starting above 1: offset must be added back to dispImg 
     dD = dR[0] - 1
+    
     return(dR, dD)
+    
+# Old pixel-based disparity range estimation from mono images
+def dispRangeHist(mdL, mdR, doffs, baseline, focus):
+        
+   # mdL Histogram
+    mdLhist, mdLbins = np.histogram(mdL, bins=256)    
+    # convert mdL Histogram to pseudo-disp histogram and align
+    mdLbins = (baseline*focus)/(mdLbins*1000) - doffs
+        
+    #flip histogram
+    mdLhist = np.flip(mdLhist)
+    mdLbins = np.flip(mdLbins)
+    mdLbins = mdLbins[0:mdLbins.size-1]
+    # Show histogram   
+          
+    # lower and upper 1% / 5% quantiles determine location of dispRange boundaries
+    s1 = mdLhist.sum()    
+    s=0
+    ind=0
+    brk = 0
+    for n in mdLhist:
+        s = s + n
+        ind = ind+1
+        if s >= 0.01 * s1 and brk == 0:
+            dMin = np.int(np.round(mdLbins[ind]))
+            brk = 1
+        if s >= 0.99 * s1:
+            dMax = np.int(np.round(mdLbins[ind]))
+            break
+        
+    if dMin <1:
+        dMin = 1
+   
+    # Disparity range NOTE: For calculation 
+    dR = np.arange(dMin, dMax)        # disparity 0 is ignored, non plausible value (inf distance))
+    dR = dR.astype(np.int16)
+    
+    # If dMin starting above 1: offset must be added back to dispImg 
+    dD = dR[0] - 1
+    
+    # # Plots
+    # fig,axes = plt.subplots(1,1)
+    # plt.title("%s: Mono-Depth Estimation" % (p))
+    # plt.bar(mdLbins, mdLhist)
+    # plt.xlabel("Disparity [pix]")
+    # plt.ylabel("Number of matches")
+    # plt.grid(True)
+    # plt.show()
+    
+    # fig,axes = plt.subplots(1,1)
+    # plt.title("%s: Ground Truth" % (p))
+    # plt.bar(gtLbins, gtLhist)
+    # plt.xlabel("Disparity [pix]")
+    # plt.ylabel("Number of matches")
+    # plt.grid(True)
+    # plt.show()
+    
+    return(dR, dD)    
     
 # Read calibration file
 def readCal(cal):
