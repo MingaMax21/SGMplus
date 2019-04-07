@@ -53,15 +53,15 @@ def readGT(f):
     
 # Import L+R image pair, calib file, as well as metric depth maps
 
-gt = readGT("./data/Adirondack/disp0GT.pfm")
-ours = readGT(("./data/Adirondack/disp0mda.pfm")) 
+gt = readGT("./data/Piano/disp0GT.pfm")
+ours = readGT(("./data/Piano/disp0mda.pfm")) 
 
 # Plot pfm disparities
 print("Ground truth disp left:\n")
 fig,axes = plt.subplots(1,1)
 axes.set_xlabel("X")
 axes.set_ylabel("Y")
-axes.set_title("gtL")
+axes.set_title("Ground Truth")
 axes.imshow(gt,cmap='gray')
 plt.show()
 
@@ -69,6 +69,6 @@ print("mdaSGM disp left:\n")
 fig,axes = plt.subplots(1,1)
 axes.set_xlabel("X")
 axes.set_ylabel("Y")
-axes.set_title("Ours")
+axes.set_title("mdaSGM")
 axes.imshow(ours,cmap='gray')
 plt.show()

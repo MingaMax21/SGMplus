@@ -140,24 +140,7 @@ def dispRangeHist(mdL, mdR, doffs, baseline, focus):
     
     # If dMin starting above 1: offset must be added back to dispImg 
     dD = dR[0] #- 1 (-1 theoretically correct, yet detrimental on quality)
-    
-    # # Plots
-    # fig,axes = plt.subplots(1,1)
-    # plt.title("%s: Mono-Depth Estimation" % (p))
-    # plt.bar(mdLbins, mdLhist)
-    # plt.xlabel("Disparity [pix]")
-    # plt.ylabel("Number of matches")
-    # plt.grid(True)
-    # plt.show()
-    
-    # fig,axes = plt.subplots(1,1)
-    # plt.title("%s: Ground Truth" % (p))
-    # plt.bar(gtLbins, gtLhist)
-    # plt.xlabel("Disparity [pix]")
-    # plt.ylabel("Number of matches")
-    # plt.grid(True)
-    # plt.show()
-    
+        
     return(dR, dD)    
     
 # Read calibration file

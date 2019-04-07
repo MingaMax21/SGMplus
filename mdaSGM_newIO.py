@@ -23,10 +23,10 @@ start = time.time()
 print('mdaSGM initialized\n')
 
 #Debug
-imSet = ['Adirondack']
+#imSet = ['Recycle']
 
 # Full
-# imSet = ['Adirondack','ArtL','Jadeplant','Motorcycle','MotorcycleE','Piano','PianoL','Pipes','Playroom','Playtable','Recycle','Shelves','Teddy','Vintage']
+imSet = ['Adirondack','ArtL','Jadeplant','Motorcycle','MotorcycleE','Piano','PianoL','Pipes','Playroom','Playtable','Recycle','Shelves','Teddy','Vintage']
 
 # DEFINE CONSTANTS HERE:
 # ---------------------------------------------------------------------------
@@ -77,12 +77,9 @@ for p in imSet:
     # Calibration metrics for depth-disparity conversion
     cal = open(os.path.join("./data", p, "calib.txt"))
     focus, doffs, baseline, width, height, ndisp, vmin, vmax, dyavg, dymax = mda.readCal(cal) #cal.readlines()
-    #print(doffs)
-   # print(baseline)
-    #print(focus)
-    
+
     # Get disparity range dR from mono-depth metrics 
-    #dR, dD = mda.dispRangeOld(mdL, mdR, doffs, baseline, focus) #   Old: Activate for pure pixel disparity borders (bad)
+    #dR, dD = mda.dispRangeOld(mdL, mdR, doffs, baseline, focus)  #   Old: Activate for pure pixel disparity borders (worse)
     dR, dD = mda.dispRangeHist(mdL, mdR, doffs, baseline, focus)  #   New: Histogram based disparity borders (better)
          
     # ------------------------------ #
