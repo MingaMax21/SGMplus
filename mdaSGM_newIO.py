@@ -13,6 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imageio
 import time
+import gc
 from skimage import color
 from skimage import io
 from skimage import img_as_ubyte
@@ -22,11 +23,15 @@ import scipy.io as spio
 start = time.time()
 print('mdaSGM initialized\n')
 
-#Debug
-#imSet = ['Recycle']
-
+# DEFINE IMAGE OR IMAGE SET HERE
+# Debug
+imSet = ['Adirondack']
 # Full
-imSet = ['Adirondack','ArtL','Jadeplant','Motorcycle','MotorcycleE','Piano','PianoL','Pipes','Playroom','Playtable','Recycle','Shelves','Teddy','Vintage']
+#imSet = ['Adirondack','ArtL','Jadeplant','Motorcycle','MotorcycleE','Piano','PianoL','Pipes','Playroom','Playtable','Recycle','Shelves','Teddy','Vintage']
+
+# SELECT LAINA or LIU PREDICTIONS
+pred = 'Laina'
+#pred = 'Liu'
 
 # DEFINE CONSTANTS HERE:
 # ---------------------------------------------------------------------------
@@ -40,14 +45,22 @@ p1 = (0.5 * bSf * bSf)
 p2 = (2 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 8
+nP = 1
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
 # Run algorithm for all images
-for p in imSet:  
+for p in imSet: 
+    # Initialize log file
+    log = p + '_log'    
+    f = open('%s.txt' % log, 'w+')
     
     print(p)
+    # TODO Write image name to log
+    # TODO Write mono-depth method to log
+    
+    
+    
     # Ground truth (comparison only)
     gtL = mda.readGT(os.path.join("./data/", p, "disp0GT.pfm"))
     
@@ -68,12 +81,24 @@ for p in imSet:
     imL = imL.astype(np.int16)       
     imR = imR.astype(np.int16)
     
-    # Read mono-depth images
-    mdL = spio.loadmat(os.path.join("./data/", p, "im0/predict_depth.mat"))
-    mdL = mdL["data_obj"]
-    mdR = spio.loadmat(os.path.join("./data/", p, "im1/predict_depth.mat"))
-    mdR = mdR["data_obj"]    
+    # TODO Write image dim to log
     
+    
+    # Read mono-depth images
+    mdL = spio.loadmat(os.path.join("./data/", p, pred, "im0/predict_depth.mat"))
+    mdR = spio.loadmat(os.path.join("./data/", p, pred, "im1/predict_depth.mat"))
+    
+    # Extract predicitions from mat file
+    if pred == 'Liu':
+        mdL = mdL["data_obj"]
+        mdR = mdR["data_obj"]    
+    elif pred == 'Laina':
+        mdL = mdL["pred_depths"]
+        mdR = mdR["pred_depths"]
+    else:
+        print('Invalid mono-depth method. Please select Liu or Laina')
+        quit
+            
     # Calibration metrics for depth-disparity conversion
     cal = open(os.path.join("./data", p, "calib.txt"))
     focus, doffs, baseline, width, height, ndisp, vmin, vmax, dyavg, dymax = mda.readCal(cal) #cal.readlines()
@@ -81,13 +106,17 @@ for p in imSet:
     # Get disparity range dR from mono-depth metrics 
     #dR, dD = mda.dispRangeOld(mdL, mdR, doffs, baseline, focus)  #   Old: Activate for pure pixel disparity borders (worse)
     dR, dD = mda.dispRangeHist(mdL, mdR, doffs, baseline, focus)  #   New: Histogram based disparity borders (better)
-         
+    print(dR)     
     # ------------------------------ #
     
     #DEBUG: CHEAT DISP RANGE From INFO 
-    #dR = np.arange(vmin, vmax)
-    
+    dR2 = np.arange(vmin, vmax)
+    print(dR2)
     # ------------------------------ #
+    
+    # TODO Write disparity range(s) to log
+    
+    
     
     # Calculate raw cost
     cIm = mda.rawCost(imL, imR, bS, dR)
@@ -139,7 +168,7 @@ for p in imSet:
     imageio.imsave(os.path.join("./data", p, "dpMap.png"), dpMap.astype(np.uint8))
 
 
-
+    gc.collect()
 
 
 
