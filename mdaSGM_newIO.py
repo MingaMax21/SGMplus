@@ -25,7 +25,7 @@ print('mdaSGM initialized\n')
 
 # DEFINE IMAGE OR IMAGE SET HERE
 # Debug
-imSet = ['Adirondack']
+imSet = ['Teddy']
 # Full
 #imSet = ['Adirondack','ArtL','Jadeplant','Motorcycle','MotorcycleE','Piano','PianoL','Pipes','Playroom','Playtable','Recycle','Shelves','Teddy','Vintage']
 
@@ -37,7 +37,7 @@ pred = 'Laina'
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # Block size for sum aggregation (good values: 5-9)
-bS = 7 
+bS = 5 
 bSf = np.float(bS)
 
 # Penalty terms
@@ -45,7 +45,7 @@ p1 = (0.5 * bSf * bSf)
 p2 = (2 * bSf * bSf)
 
 # Number of paths (SUPPORTS 1-8)
-nP = 1
+nP = 5
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -56,23 +56,10 @@ for p in imSet:
     f = open('%s.txt' % log, 'w+')
     
     print(p)
-    # TODO Write image name to log
-    # TODO Write mono-depth method to log
-    
-    
-    
+
     # Ground truth (comparison only)
     gtL = mda.readGT(os.path.join("./data/", p, "disp0GT.pfm"))
-    
-    # Ground truth histogram
-    gtL[gtL >= 1E308] = 0
-    gtLhist, gtLbins = np.histogram(gtL, bins=256)
-    gtLbins = gtLbins[0:gtLbins.size-1]
-    
-    # Save and remove gt mismatches from histogram
-    gtFails = gtLhist[0]
-    gtLhist[0] = 0
-    
+        
     # Read input images
     imL = color.rgb2gray(io.imread(os.path.join("./data", p, "im0.png")))
     imR = color.rgb2gray(io.imread(os.path.join("./data", p, "im1.png")))
@@ -80,9 +67,6 @@ for p in imSet:
     imR = img_as_ubyte(imR)
     imL = imL.astype(np.int16)       
     imR = imR.astype(np.int16)
-    
-    # TODO Write image dim to log
-    
     
     # Read mono-depth images
     mdL = spio.loadmat(os.path.join("./data/", p, pred, "im0/predict_depth.mat"))
@@ -114,12 +98,8 @@ for p in imSet:
     print(dR2)
     # ------------------------------ #
     
-    # TODO Write disparity range(s) to log
-    
-    
-    
-    # Calculate raw cost
-    cIm = mda.rawCost(imL, imR, bS, dR)
+    # Calculate raw cost            ***   <- use [dR] for mda / [dr2] for cheat range    
+    cIm = mda.rawCost(imL, imR, bS, dR2)
     
     # Path search and cost aggregation
     lIm = mda.costAgg(cIm, p1, p2, nP)
@@ -150,9 +130,9 @@ for p in imSet:
     dMap = dMap[np.isfinite(dMap)]
     dMap = dMap.reshape(height, width)
 
-    # Depth map from disparity map
+    # Depth map from disparity map (expressed in meters)
     dpMap = np.zeros((height, width))
-    dpMap = ((baseline*focus)/(dMap + doffs)) / 1000
+    dpMap = ((baseline*focus)/(dMap + doffs))  / 1000
     
     # Output depth map
     fig,axes = plt.subplots(1,1)
@@ -164,9 +144,23 @@ for p in imSet:
     
     print("Time elapsed: --- %s seconds ---" % (time.time() - start))
 
+    # Save output maps
     imageio.imsave(os.path.join("./data", p, "dMap.png"), dMap.astype(np.uint8))
     imageio.imsave(os.path.join("./data", p, "dpMap.png"), dpMap.astype(np.uint8))
 
+    # Create Histograms:
+    # GT Histogram
+    gtL[gtL >= 1E308] = 0
+    gtLhist, gtLbins = np.histogram(gtL, bins=vmax)
+    
+    # Save and remove gt mismatches from histogram
+    gtFails = gtLhist[0]
+    #gtLhist[0] = 0
+    
+    # mdaSGM output Histogram
+    #gtL[gtL >= 1E308] = 0
+    mdaHist, mdaBins = np.histogram(dMap, bins=dR[-1])
+    
 
     gc.collect()
 
